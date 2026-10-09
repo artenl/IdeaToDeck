@@ -43,6 +43,8 @@ window.IDECK_I18N = {
 
     "archive.title": "ARCHIVE",
     "archive.empty": "No scans yet.",
+    "archive.toggle": "Show or hide past scans",
+    "menu.label": "Menu",
     "hist.running": "RUNNING",
     "hist.failed": "FAILED",
 
@@ -277,6 +279,8 @@ window.IDECK_I18N = {
 
     "archive.title": "ARCHIVES",
     "archive.empty": "Aucune analyse pour l'instant.",
+    "archive.toggle": "Afficher ou masquer les analyses passées",
+    "menu.label": "Menu",
     "hist.running": "EN COURS",
     "hist.failed": "ÉCHEC",
 

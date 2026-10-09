@@ -198,7 +198,34 @@
     for (const id of ["auth", "soon", "deck"]) $(id).hidden = id !== screen;
     $("strip").hidden = screen !== "deck";
     $("who").hidden = screen !== "deck";
+    $("menu-btn").hidden = screen !== "deck";
+    $("topbar").classList.toggle("in-deck", screen === "deck");
+    setMenu(false);
   }
+
+  // Small screens: account, quota and buttons sit in a sheet behind the menu button.
+  function setMenu(open) {
+    $("topbar").classList.toggle("menu-open", open);
+    $("menu-btn").setAttribute("aria-expanded", String(open));
+  }
+
+  $("menu-btn").addEventListener("click", () => setMenu(!$("topbar").classList.contains("menu-open")));
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#topbar")) setMenu(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setMenu(false);
+  });
+
+  // Single-column layouts show the archive as a bar that opens on tap.
+  function setArchive(open) {
+    $("archive").classList.toggle("open", open);
+    $("archive-toggle").setAttribute("aria-expanded", String(open));
+  }
+
+  $("archive").querySelector(".archive-head").addEventListener("click", () => {
+    setArchive(!$("archive").classList.contains("open"));
+  });
 
   const BOOT = [
     ["boot.bios", "boot.ok"],
@@ -293,6 +320,7 @@
 
   $("soon-back").addEventListener("click", () => toAuth());
   $("logout").addEventListener("click", async () => {
+    setMenu(false);
     await api("/api/logout", { method: "POST" });
     toAuth();
   });
@@ -379,6 +407,7 @@
   }
 
   $("keys-btn").addEventListener("click", () => {
+    setMenu(false);
     if ($("keys-panel").hidden) openKeys();
     else $("keys-panel").hidden = true;
   });
@@ -680,7 +709,7 @@
         : h("span", { class: run.status === "failed" ? "c-red" : "c-amber" },
           tOr(`hist.${run.status}`, null, run.status.toUpperCase()));
       return h("li", {},
-        h("button", { type: "button", "data-id": run.id, onclick: () => openRun(run.id) },
+        h("button", { type: "button", "data-id": run.id, onclick: () => { setArchive(false); openRun(run.id); } },
           h("span", { class: "h-title" }, run.title || run.idea),
           h("span", { class: "h-meta" }, status, h("span", {}, t(`mode.short.${run.mode === "deep" ? "deep" : "cheap"}`)),
             h("span", {}, fmtDate(run.created_at)))));
@@ -721,7 +750,8 @@
     return h("button", { type: "button", class: "cite", onclick: () => jumpToSource(id) }, id);
   }
 
-  // Turn "[S1]" or "[S1, S3]" inside model text into clickable source chips.
+  // Turn "[S1]" or "[S1, S3]" inside model text into clickable source chips. Chips and
+  // the punctuation right after them stay on one line ("niche [S6]." never wraps the dot).
   function cite(text) {
     const out = [];
     const re = /\[(S\d+(?:\s*,\s*S\d+)*)\]/g;
@@ -730,7 +760,10 @@
     let m;
     while ((m = re.exec(s))) {
       if (m.index > last) out.push(s.slice(last, m.index));
-      for (const id of m[1].split(/\s*,\s*/)) out.push(chip(id));
+      const chips = m[1].split(/\s*,\s*/).map(chip);
+      const punct = s.slice(re.lastIndex).match(/^[.,;:!?)»]+/);
+      if (punct) re.lastIndex += punct[0].length;
+      out.push(h("span", { class: "cite-group" }, chips, punct ? punct[0] : null));
       last = re.lastIndex;
     }
     if (last < s.length) out.push(s.slice(last));
@@ -922,6 +955,7 @@
   async function init() {
     applyStatic();
     renderStatus();
+    renderSearchCount();
     tick();
     setInterval(tick, 1000);
     try {

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#05070a">
   <title>IDEA//DECK</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2306080b'/%3E%3Cpath d='M3 3h10v10H3z' fill='none' stroke='%236dffb3' stroke-width='1.5'/%3E%3Ccircle cx='8' cy='8' r='2' fill='%236dffb3'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,22 +19,28 @@
   <div class="crt" aria-hidden="true"></div>
 
   <!-- Text is English by default; app.js swaps every [data-i18n*] string for the chosen language. -->
-  <header class="topbar">
+  <header class="topbar" id="topbar">
     <div class="brand"><span class="led led-mint" aria-hidden="true"></span>IDEA<span class="slash">//</span>DECK<small id="version"></small></div>
-    <div class="strip" id="strip" hidden>
-      <span><span data-i18n="strip.llm">LLM</span> <b id="strip-model">HAIKU 5.5</b></span>
-      <span><span data-i18n="strip.recon">RECON</span> <b>TAVILY</b></span>
-      <span><span data-i18n="strip.quota">QUOTA</span> <b id="strip-quota">—</b></span>
-    </div>
-    <div class="who" id="who" hidden>
-      <span class="operator" id="operator"></span>
-      <button class="btn btn-ghost" id="keys-btn" type="button" hidden data-i18n="btn.keys">KEYS</button>
-      <button class="btn btn-ghost" id="logout" type="button" data-i18n="btn.eject">EJECT</button>
+    <!-- Inline in the bar on wide screens; a drop-down sheet behind the menu button on small ones. -->
+    <div class="topbar-menu" id="topbar-menu">
+      <div class="strip" id="strip" hidden>
+        <span><span data-i18n="strip.llm">LLM</span> <b id="strip-model">HAIKU 5.5</b></span>
+        <span class="strip-recon"><span data-i18n="strip.recon">RECON</span> <b>TAVILY</b></span>
+        <span><span data-i18n="strip.quota">QUOTA</span> <b id="strip-quota">—</b></span>
+      </div>
+      <div class="who" id="who" hidden>
+        <span class="operator" id="operator"></span>
+        <button class="btn btn-ghost" id="keys-btn" type="button" hidden data-i18n="btn.keys">KEYS</button>
+        <button class="btn btn-ghost" id="logout" type="button" data-i18n="btn.eject">EJECT</button>
+      </div>
     </div>
     <div class="lang-switch" role="group" aria-label="Interface language" data-i18n-aria="lang.label">
       <button type="button" data-lang="en" aria-pressed="true">EN</button>
       <button type="button" data-lang="fr" aria-pressed="false">FR</button>
     </div>
+    <button class="menu-btn" id="menu-btn" type="button" hidden aria-expanded="false" aria-controls="topbar-menu" aria-label="Menu" data-i18n-aria="menu.label">
+      <span></span><span></span><span></span>
+    </button>
     <time class="clock" id="clock"></time>
   </header>
 
@@ -69,10 +76,15 @@
 
   <!-- DECK -->
   <main class="deck" id="deck" hidden>
-    <aside class="panel archive">
-      <div class="panel-head"><span data-i18n="archive.title">ARCHIVE</span><span class="code" id="archive-count">0</span></div>
-      <ol class="history" id="history"></ol>
-      <p class="empty" id="history-empty" data-i18n="archive.empty">No scans yet.</p>
+    <aside class="panel archive" id="archive">
+      <div class="panel-head archive-head">
+        <span data-i18n="archive.title">ARCHIVE</span>
+        <span class="code"><span id="archive-count">0</span><button type="button" class="archive-toggle" id="archive-toggle" aria-expanded="false" aria-controls="archive-body" aria-label="Show past scans" data-i18n-aria="archive.toggle"><span aria-hidden="true">▾</span></button></span>
+      </div>
+      <div class="archive-body" id="archive-body">
+        <ol class="history" id="history"></ol>
+        <p class="empty" id="history-empty" data-i18n="archive.empty">No scans yet.</p>
+      </div>
     </aside>
 
     <div class="console">
