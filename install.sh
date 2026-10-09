@@ -168,8 +168,20 @@ fetch_code() {
   if [ -d "$INSTALL_DIR/.git" ]; then
     git -C "$INSTALL_DIR" fetch --quiet origin
     if [ -n "$BRANCH" ]; then git -C "$INSTALL_DIR" checkout --quiet "$BRANCH"; fi
-    git -C "$INSTALL_DIR" pull --quiet --ff-only \
-      || die "Could not fast-forward $INSTALL_DIR (local changes?). Resolve them and re-run."
+    if ! git -C "$INSTALL_DIR" pull --quiet --ff-only 2>/dev/null; then
+      # The published history was rewritten. Local settings live in untracked files
+      # (.env, docker-compose.override.yml), so following the remote is safe as long
+      # as nobody edited tracked files here.
+      if [ -n "$(git -C "$INSTALL_DIR" status --porcelain --untracked-files=no)" ]; then
+        die "Files in $INSTALL_DIR were edited locally. Revert them (git -C $INSTALL_DIR status) and re-run."
+      fi
+      local upstream previous
+      upstream=$(git -C "$INSTALL_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null \
+        || echo origin/HEAD)
+      previous=$(git -C "$INSTALL_DIR" rev-parse --short HEAD)
+      warn "The repository history changed upstream; moving to $upstream (previous commit: $previous)."
+      git -C "$INSTALL_DIR" reset --quiet --hard "$upstream"
+    fi
   else
     mkdir -p "$(dirname "$INSTALL_DIR")"
     if [ -n "$BRANCH" ]; then
