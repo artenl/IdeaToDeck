@@ -74,6 +74,13 @@ docker exec <caddy-container> caddy reload --config /etc/caddy/Caddyfile --adapt
 
 Caddy gets the HTTPS certificate on its own. `docker-compose.override.yml` is git-ignored, so updates keep it.
 
+If the reload logs `config is unchanged`, the Caddy container is still reading an old copy of its Caddyfile. When a single mounted file is replaced on the host (some editors and updaters do this), the container keeps seeing the old version until it restarts. Validate the new file, then restart that Caddy container:
+
+```bash
+docker exec -i <caddy-container> sh -c 'cat > /tmp/Caddyfile.new && caddy validate --config /tmp/Caddyfile.new --adapter caddyfile' < /path/to/Caddyfile
+docker restart <caddy-container>
+```
+
 ## Access control
 
 - Only **whitelisted emails** can use the app. Anyone else who signs in sees a "Coming soon" screen, and their email goes on a waitlist.
