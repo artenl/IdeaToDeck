@@ -91,6 +91,12 @@ docker exec -i <caddy-container> sh -c 'cat > /tmp/Caddyfile.new && caddy valida
 docker restart <caddy-container>
 ```
 
+## Languages
+
+The interface is in **English and French**. Use the **EN | FR** switch in the top bar; it's remembered per browser, and the default follows the browser's language.
+
+The language that's active when you start a scan is also the language of the **report itself**. In French, Claude writes the analysis in French and searches in both French (local market) and English (global competitors). The downloadable `.md` report uses the report's language too. From the command line: `idea-eval run "…" --lang fr`.
+
 ## Access control
 
 - Only **whitelisted emails** can use the app. Anyone else who signs in sees a "Coming soon" screen, and their email goes on a waitlist.
@@ -153,7 +159,7 @@ Settings live in `/opt/isthisideagood/.env`. See [.env.example](.env.example) fo
 uv sync                        # Python 3.12+
 cp .env.example .env           # add your keys
 uv run idea-eval run "a marketplace for renting camping gear between neighbours"
-uv run idea-eval run "..." --deep --out report.md
+uv run idea-eval run "..." --deep --lang fr --out rapport.md
 uv run idea-eval users add you@example.com --admin
 uv run idea-eval serve         # http://127.0.0.1:8000
 uv run pytest                  # offline: Claude and Tavily are faked

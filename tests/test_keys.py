@@ -79,7 +79,8 @@ def test_check_tavily_reports_usage_and_invalid_keys():
         return asyncio.run(check_tavily("tvly-x", http_client=client))
 
     ok = run(200, {"key": {"usage": 12}, "account": {"plan_usage": 12, "plan_limit": 1000}})
-    assert ok == {"status": "ok", "message": "Key works · 12/1000 searches used."}
+    assert ok == {"status": "ok", "message": "Key works · 12/1000 searches used.",
+                  "used": 12, "limit": 1000}
     assert run(200, {"account": {"plan_usage": 1000, "plan_limit": 1000}})["status"] == "no_credits"
     assert run(401, {"detail": {"error": "Unauthorized"}})["status"] == "invalid"
     assert asyncio.run(check_tavily(""))["status"] == "missing"
@@ -117,7 +118,7 @@ def test_keys_endpoints_are_admin_only(env):
     assert client.get("/api/admin/keys").status_code == 403
     assert client.put("/api/admin/keys", json={"tavily_api_key": "tvly-good"}).status_code == 403
     resp = client.post("/api/runs", json=IDEA)
-    assert resp.status_code == 503 and "Ask the admin" in resp.json()["detail"]
+    assert resp.status_code == 503 and resp.json()["detail"]["code"] == "not_configured"
 
 
 def test_admin_saves_keys_and_invalid_ones_are_rejected(env):
@@ -126,7 +127,7 @@ def test_admin_saves_keys_and_invalid_ones_are_rejected(env):
     me = client.get("/api/me").json()
     assert me["keys_ready"] is False
     resp = client.post("/api/runs", json=IDEA)
-    assert resp.status_code == 503 and "KEYS" in resp.json()["detail"]
+    assert resp.status_code == 503 and resp.json()["detail"]["code"] == "keys_missing"
 
     resp = client.put("/api/admin/keys", json={"anthropic_api_key": " sk-ant-wrong ",
                                                "tavily_api_key": "tvly-good"}).json()

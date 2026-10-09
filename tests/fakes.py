@@ -26,7 +26,8 @@ class FakeLLM:
         self.scores = scores
 
     async def structured(self, *, node, tier, mode, schema, system, user):
-        self.calls.append({"node": node, "tier": tier, "mode": mode, "user": user})
+        self.calls.append({"node": node, "tier": tier, "mode": mode, "user": user,
+                           "system": system})
         model = "claude-sonnet-5-5" if (tier == "senior" and mode == "deep") else "claude-haiku-5-5"
         usage = {"node": node, "model": model, "input_tokens": 1000, "output_tokens": 200,
                  "cost_usd": 0.0002}

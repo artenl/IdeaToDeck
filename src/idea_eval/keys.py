@@ -135,10 +135,12 @@ async def check_tavily(key: str, http_client: httpx.AsyncClient | None = None) -
         account = {}
     used, limit = account.get("plan_usage"), account.get("plan_limit")
     if isinstance(used, int | float) and isinstance(limit, int | float) and limit:
+        counts = {"used": int(used), "limit": int(limit)}
         if used >= limit:
             return {"status": "no_credits", "message": f"Key works, but all {int(limit)} "
-                    "searches for this month are used."}
-        return {"status": "ok", "message": f"Key works · {int(used)}/{int(limit)} searches used."}
+                    "searches for this month are used.", **counts}
+        return {"status": "ok", "message": f"Key works · {int(used)}/{int(limit)} searches used.",
+                **counts}
     return {"status": "ok", "message": "Key works."}
 
 

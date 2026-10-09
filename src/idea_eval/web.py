@@ -82,6 +82,12 @@ class RunIn(BaseModel):
     idea: str = Field(min_length=8, max_length=2000)
     mode: Literal["cheap", "deep"] = "cheap"
     profile: str = Field(default="", max_length=1000)
+    lang: Literal["en", "fr"] = "en"  # language the report is written in
+
+
+def api_error(status: int, code: str, message: str) -> HTTPException:
+    """Errors carry a stable code (translated by the UI) and an English message."""
+    return HTTPException(status_code=status, detail={"code": code, "message": message})
 
 
 def _session_secret(settings: Settings) -> str:
@@ -154,14 +160,14 @@ def create_app(
         uid = request.session.get("uid")
         user = db.get_user_by_id(uid) if isinstance(uid, int) else None
         if user is None or request.session.get("pwv") != _password_version(user):
-            raise HTTPException(status_code=401, detail="Not signed in")
+            raise api_error(401, "not_signed_in", "Not signed in")
         return user
 
     CurrentUser = Annotated[dict[str, Any], Depends(current_user)]
 
     def admin_user(user: CurrentUser) -> dict[str, Any]:
         if not user["is_admin"]:
-            raise HTTPException(status_code=403, detail="Admins only")
+            raise api_error(403, "admins_only", "Admins only")
         return user
 
     AdminUser = Annotated[dict[str, Any], Depends(admin_user)]
@@ -177,7 +183,7 @@ def create_app(
     def owned_run(run_id: str, user: dict[str, Any]) -> dict[str, Any]:
         run = db.get_run(run_id)
         if run is None or run["user_id"] != user["id"]:
-            raise HTTPException(status_code=404, detail="Run not found")
+            raise api_error(404, "run_not_found", "Run not found")
         return run
 
     # Pages -----------------------------------------------------------------
@@ -203,7 +209,7 @@ def create_app(
         ip = request.client.host if request.client else "unknown"
         email = normalize_email(body.email)
         if ip_limiter.blocked(ip) or email_limiter.blocked(email):
-            raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+            raise api_error(429, "too_many_attempts", "Too many attempts. Try again later.")
         user = db.get_user(email)
         if user is None:
             await run_in_threadpool(verify_password, body.password, DUMMY_HASH)
@@ -215,7 +221,7 @@ def create_app(
         if not ok:
             ip_limiter.fail(ip)
             email_limiter.fail(email)
-            raise HTTPException(status_code=401, detail="Access denied")
+            raise api_error(401, "access_denied", "Access denied")
         email_limiter.reset(email)
         request.session.clear()
         request.session.update(uid=user["id"], pwv=_password_version(user))
@@ -251,7 +257,7 @@ def create_app(
             if value == "":
                 db.delete_setting(name)  # fall back to the server's .env value
             elif not valid_key_format(value):
-                raise HTTPException(status_code=422, detail=f"{name} has invalid characters.")
+                raise api_error(422, "key_format", f"{name} has invalid characters.")
             else:
                 to_check[name] = value
         checks = await key_checker(to_check, settings.cheap_model) if to_check else {}
@@ -273,21 +279,23 @@ def create_app(
     @app.post("/api/runs")
     async def create_run(body: RunIn, user: CurrentUser) -> dict[str, Any]:
         if require_keys and not keys_ready(settings, db):
-            detail = (
-                "API keys are missing. Add them with the KEYS button at the top."
-                if user["is_admin"] else "This deck is not configured yet. Ask the admin."
-            )
-            raise HTTPException(status_code=503, detail=detail)
+            if user["is_admin"]:
+                raise api_error(503, "keys_missing",
+                                "API keys are missing. Add them with the KEYS button at the top.")
+            raise api_error(503, "not_configured",
+                            "This deck is not configured yet. Ask the admin.")
         q = quota(user)
         if q["limit"] is not None and q["used"] >= q["limit"]:
-            raise HTTPException(status_code=429, detail="Monthly run limit reached.")
+            raise api_error(429, "monthly_limit", "Monthly run limit reached.")
         if (
             not user["is_admin"]
             and settings.monthly_budget_usd > 0
             and db.cost_this_month() >= settings.monthly_budget_usd
         ):
-            raise HTTPException(status_code=429, detail="Monthly budget reached.")
-        run_id = manager.start(user["id"], body.idea.strip(), body.mode, body.profile.strip())
+            raise api_error(429, "budget", "Monthly budget reached.")
+        run_id = manager.start(
+            user["id"], body.idea.strip(), body.mode, body.profile.strip(), body.lang
+        )
         return {"id": run_id}
 
     @app.get("/api/runs")
@@ -304,7 +312,7 @@ def create_app(
     async def report_md(run_id: str, user: CurrentUser) -> PlainTextResponse:
         run = owned_run(run_id, user)
         if not run.get("result"):
-            raise HTTPException(status_code=409, detail="Run has no report yet")
+            raise api_error(409, "no_report", "Run has no report yet")
         return PlainTextResponse(
             to_markdown(run["result"]),
             media_type="text/markdown; charset=utf-8",

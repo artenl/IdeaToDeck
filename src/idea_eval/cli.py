@@ -54,7 +54,7 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     result = asyncio.run(run_pipeline(
         args.idea, deps=deps, mode="deep" if args.deep else "cheap", profile=args.profile,
-        on_event=progress,
+        lang=args.lang, on_event=progress,
     ))
     output = json.dumps(result, indent=2) if args.json else to_markdown(result)
     if args.out:
@@ -137,6 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("idea")
     run.add_argument("--deep", action="store_true", help="Use the deep model for judge/strategist")
     run.add_argument("--profile", default="", help="About you: skills, budget, time")
+    run.add_argument("--lang", choices=["en", "fr"], default="en", help="Report language")
     run.add_argument("--json", action="store_true", help="Print raw JSON instead of Markdown")
     run.add_argument("--out", help="Write the report to a file")
     run.set_defaults(func=cmd_run)

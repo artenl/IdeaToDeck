@@ -73,7 +73,16 @@ a:hover { text-decoration: underline; }
 .who { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .operator { color: var(--mint); max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .clock { color: var(--dim); font-variant-numeric: tabular-nums; }
-.who[hidden] + .clock { margin-left: auto; }
+.who[hidden] + .lang-switch { margin-left: auto; }
+
+.lang-switch { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--radius); overflow: hidden; }
+.lang-switch button {
+  background: transparent; color: var(--dim); border: 0; padding: 5px 9px; cursor: pointer;
+  font: 600 11px/1 var(--display); letter-spacing: 0.14em;
+}
+.lang-switch button + button { border-left: 1px solid var(--line-2); }
+.lang-switch button:hover { color: var(--text); }
+.lang-switch button[aria-pressed="true"] { background: rgb(109 255 179 / 0.12); color: var(--mint); }
 
 .led {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
@@ -210,6 +219,10 @@ textarea { resize: vertical; }
 .controls .btn-primary { margin-left: auto; }
 .est { font-size: 12px; letter-spacing: 0.06em; }
 .est b { color: var(--mint); font-weight: 500; }
+.report-lang {
+  margin-left: 6px; padding: 1px 6px; font-size: 11px; white-space: nowrap;
+  color: var(--cyan); border: 1px solid rgb(72 229 255 / 0.35); border-radius: 2px;
+}
 .deep-on .est b { color: var(--magenta); }
 
 .mode {

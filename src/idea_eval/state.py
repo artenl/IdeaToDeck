@@ -18,6 +18,7 @@ class IdeaState(TypedDict, total=False):
     idea: str
     profile: str
     mode: Mode
+    lang: str  # output language of the report: "en" or "fr"
 
     # Research
     brief: IdeaBrief

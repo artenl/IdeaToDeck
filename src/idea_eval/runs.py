@@ -36,30 +36,37 @@ class RunChannel:
             q.put_nowait(None)
 
 
-def friendly_error(exc: BaseException) -> str:
+def describe_error(exc: BaseException) -> tuple[str, str, str]:
+    """(code, English message, raw detail). The UI translates by code."""
     # langchain-anthropic re-raises SDK errors as subclasses (e.g.
     # AnthropicInvalidRequestError), so match on the SDK base classes.
     if isinstance(exc, anthropic.AuthenticationError):
-        return "Anthropic rejected the API key (check ANTHROPIC_API_KEY)."
+        return "auth", "Anthropic rejected the API key. Check it with the KEYS button.", ""
     if isinstance(exc, anthropic.RateLimitError):
-        return "Anthropic rate limit hit. Try again in a minute."
+        return "rate_limit", "Anthropic rate limit hit. Try again in a minute.", ""
     if isinstance(exc, anthropic.APIConnectionError):  # includes timeouts
-        return "Could not reach the Anthropic API."
+        return "network", "Could not reach the Anthropic API.", ""
     if isinstance(exc, anthropic.APIStatusError):
-        message = api_error_message(exc)
-        if "credit balance" in message.lower():
-            return (
+        detail = api_error_message(exc)
+        if "credit balance" in detail.lower():
+            return "no_credits", (
                 "Your Anthropic account has no credits. Add some at "
                 "console.anthropic.com (Settings > Billing), then run it again."
-            )
+            ), detail
         if isinstance(exc, anthropic.PermissionDeniedError):
-            return f"Anthropic denied access: {message}"
+            return "permission", f"Anthropic denied access: {detail}", detail
         if isinstance(exc, anthropic.NotFoundError):
-            return f"Anthropic model not found: {message} (check CHEAP_MODEL / DEEP_MODEL)."
-        return f"Anthropic refused the request ({exc.status_code}): {message}"
+            return "model_not_found", (
+                f"Anthropic model not found: {detail} (check CHEAP_MODEL / DEEP_MODEL)."
+            ), detail
+        return "refused", f"Anthropic refused the request ({exc.status_code}): {detail}", detail
     if isinstance(exc, LLMError):
-        return str(exc)[:300]
-    return f"Pipeline failed ({type(exc).__name__})."
+        return "llm_output", str(exc)[:300], str(exc)[:300]
+    return "pipeline", f"Pipeline failed ({type(exc).__name__}).", type(exc).__name__
+
+
+def friendly_error(exc: BaseException) -> str:
+    return describe_error(exc)[1]
 
 
 class RunManager:
@@ -70,17 +77,17 @@ class RunManager:
         self.channels: dict[str, RunChannel] = {}
         self._tasks: set[asyncio.Task] = set()
 
-    def start(self, user_id: int, idea: str, mode: str, profile: str) -> str:
+    def start(self, user_id: int, idea: str, mode: str, profile: str, lang: str = "en") -> str:
         run_id = self.db.create_run(user_id, idea, mode)
         channel = RunChannel()
         self.channels[run_id] = channel
-        task = asyncio.create_task(self._execute(run_id, idea, mode, profile, channel))
+        task = asyncio.create_task(self._execute(run_id, idea, mode, profile, lang, channel))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return run_id
 
     async def _execute(
-        self, run_id: str, idea: str, mode: str, profile: str, channel: RunChannel
+        self, run_id: str, idea: str, mode: str, profile: str, lang: str, channel: RunChannel
     ) -> None:
         spent = 0.0
 
@@ -92,19 +99,21 @@ class RunManager:
 
         try:
             if self.sem.locked():
-                channel.publish({"type": "log", "msg": "Queued: another run is in progress."})
+                channel.publish({"type": "log", "code": "queued",
+                                 "msg": "Queued: another run is in progress."})
             async with self.sem:
                 channel.publish({"type": "status", "status": "running"})
                 result = await run_pipeline(
-                    idea, deps=self.deps_factory(), mode=mode, profile=profile, on_event=on_event
+                    idea, deps=self.deps_factory(), mode=mode, profile=profile, lang=lang,
+                    on_event=on_event,
                 )
             self.db.finish_run(run_id, result)
             channel.publish({"type": "done", "run_id": run_id, "result": result})
         except Exception as exc:
             log.exception("run %s failed", run_id)
-            message = friendly_error(exc)
+            code, message, detail = describe_error(exc)
             self.db.fail_run(run_id, message, spent)
-            channel.publish({"type": "error", "msg": message})
+            channel.publish({"type": "error", "code": code, "msg": message, "detail": detail})
         finally:
             channel.close()
             asyncio.get_running_loop().call_later(

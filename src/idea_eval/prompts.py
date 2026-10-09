@@ -1,4 +1,6 @@
-"""System prompts, one per LLM node."""
+"""System prompts, one per LLM node, plus the output-language instructions."""
+
+from typing import Any
 
 from .scoring import CRITERIA
 
@@ -73,3 +75,27 @@ types), not generic advice like "use social media".
 - The MVP must be small enough for the founder to ship in 2-4 weeks.
 - If the verdict is weak, the plan should focus on cheaply testing the riskiest \
 assumption, or on a pivot the research suggests."""
+
+
+LANGUAGES = {"en": "English", "fr": "French"}
+
+_LANGUAGE_NOTE = """
+
+Output language: write every text value in natural, professional {language}. Keep JSON \
+field names and enum values (such as exact, close, strong, weak) exactly as the schema \
+gives them. Keep company, product and place names as they are."""
+
+_QUERIES_NOTE = """
+Write about half of the search queries in {language} (local market) and half in English \
+(global competitors)."""
+
+
+def system(base: str, state: Any, node: str = "") -> str:
+    """Append the output-language instruction for non-English runs."""
+    lang = state.get("lang", "en") if hasattr(state, "get") else "en"
+    if lang == "en" or lang not in LANGUAGES:
+        return base
+    note = _LANGUAGE_NOTE.format(language=LANGUAGES[lang])
+    if node == "brief":
+        note += _QUERIES_NOTE.format(language=LANGUAGES[lang])
+    return base + note

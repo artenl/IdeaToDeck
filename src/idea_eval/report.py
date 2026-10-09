@@ -28,6 +28,7 @@ def build_result(state: dict[str, Any]) -> dict[str, Any]:
         "idea": state["idea"],
         "profile": state.get("profile", ""),
         "mode": state["mode"],
+        "lang": state.get("lang", "en"),
         "brief": state["brief"].model_dump(),
         "competitors": state["competitors"].model_dump(),
         "business": state["business"].model_dump(),
@@ -60,71 +61,135 @@ def build_result(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _bullets(items: list[str]) -> str:
-    return "\n".join(f"- {i}" for i in items) if items else "- (none)"
+# Markdown export wording, by report language. The report content itself is written
+# by the model in that language; these are only the headings and labels around it.
+MD_TEXT: dict[str, dict[str, Any]] = {
+    "en": {
+        "none": "(none)", "verdict": "Verdict", "confidence": "confidence",
+        "exists": "Does it exist?", "competitor_cols": ("Competitor", "What it does", "Pricing",
+                                                        "Similarity"),
+        "gaps": "Gaps", "demand": "Demand signals", "money": "How money is made",
+        "fit": "fit", "seen_at": "Seen at", "recommended": "Recommended",
+        "unit_economics": "Unit economics", "price_points": "Price points",
+        "market_signals": "Market signals", "scorecard": "Scorecard",
+        "score_cols": ("Criterion", "Weight", "Score", "Why"), "premortem": "Why it could fail",
+        "execute": "How to execute", "positioning": "Positioning", "mvp": "MVP scope",
+        "dont_build": "Don't build yet", "validation": "Validation test this week",
+        "customers": "First 10 customers", "pricing": "Pricing hypothesis",
+        "metrics": "Metrics to watch", "sources": "Sources",
+        "footer": "Mode {mode} · {calls} LLM calls · {tin} in / {tout} out tokens · "
+                  "{credits} search credits · est. ${cost:.4f} · {when}",
+        "verdicts": {"PURSUE": "PURSUE", "PIVOT": "PIVOT", "DROP": "DROP"},
+        "levels": {"high": "high", "medium": "medium", "low": "low"},
+        "existence": {"exact": "exact match", "close": "close matches",
+                      "adjacent": "adjacent", "none_found": "nothing found"},
+        "fits": {"strong": "strong", "moderate": "moderate", "weak": "weak"},
+        "criteria": {c.key: c.label for c in CRITERIA},
+    },
+    "fr": {
+        "none": "(aucun)", "verdict": "Verdict", "confidence": "confiance",
+        "exists": "Ça existe déjà ?", "competitor_cols": ("Concurrent", "Ce qu'il fait", "Prix",
+                                                          "Similarité"),
+        "gaps": "Manques", "demand": "Signaux de demande", "money": "Comment ça gagne de l'argent",
+        "fit": "adéquation", "seen_at": "Vu chez", "recommended": "Recommandé",
+        "unit_economics": "Économie unitaire", "price_points": "Prix observés",
+        "market_signals": "Signaux de marché", "scorecard": "Grille de notation",
+        "score_cols": ("Critère", "Poids", "Note", "Pourquoi"),
+        "premortem": "Pourquoi ça pourrait échouer",
+        "execute": "Comment l'exécuter", "positioning": "Positionnement", "mvp": "Périmètre du MVP",
+        "dont_build": "À ne pas construire maintenant",
+        "validation": "Test de validation cette semaine",
+        "customers": "10 premiers clients", "pricing": "Hypothèse de prix",
+        "metrics": "Indicateurs à suivre", "sources": "Sources",
+        "footer": "Mode {mode} · {calls} appels LLM · {tin} jetons en entrée / {tout} en sortie · "
+                  "{credits} crédits de recherche · coût est. {cost:.4f} $ · {when}",
+        "verdicts": {"PURSUE": "FONCER", "PIVOT": "PIVOTER", "DROP": "ABANDONNER"},
+        "levels": {"high": "élevée", "medium": "moyenne", "low": "faible"},
+        "existence": {"exact": "identique", "close": "très proche",
+                      "adjacent": "adjacent", "none_found": "rien trouvé"},
+        "fits": {"strong": "forte", "moderate": "moyenne", "weak": "faible"},
+        "criteria": {
+            "problem_pain": "Douleur du problème", "market_size": "Taille du marché",
+            "competition": "Différenciation", "monetization": "Monétisation",
+            "distribution": "Distribution", "feasibility": "Faisabilité",
+            "timing": "Timing", "defensibility": "Défendabilité",
+        },
+    },
+}
+
+
+def _bullets(items: list[str], none: str) -> str:
+    return "\n".join(f"- {i}" for i in items) if items else f"- {none}"
 
 
 def to_markdown(r: dict[str, Any]) -> str:
+    t = MD_TEXT.get(r.get("lang", "en"), MD_TEXT["en"])
     b, comp, biz, plan, score = r["brief"], r["competitors"], r["business"], r["plan"], r["score"]
+    none = t["none"]
+    verdict_word = t["verdicts"].get(score["verdict"], score["verdict"])
+    level = t["levels"].get(score["confidence"], score["confidence"])
     lines = [
         f"# {b['title']}",
         "",
         f"> {b['one_liner']}",
         "",
-        f"**Verdict: {score['verdict']} · {score['overall']}/100 · "
-        f"confidence {score['confidence']}**",
+        f"**{t['verdict']}: {verdict_word} · {score['overall']}/100 · {t['confidence']} {level}**",
         "",
         r["scorecard"]["bottom_line"],
         "",
-        "## Does it exist?",
+        f"## {t['exists']}",
         "",
-        f"**{comp['existence'].replace('_', ' ')}**: {comp['existence_summary']}",
+        f"**{t['existence'].get(comp['existence'], comp['existence'])}**: "
+        f"{comp['existence_summary']}",
         "",
     ]
     if comp["competitors"]:
-        lines += ["| Competitor | What it does | Pricing | Similarity |", "|---|---|---|---|"]
+        lines += ["| " + " | ".join(t["competitor_cols"]) + " |", "|---|---|---|---|"]
         for c in comp["competitors"]:
             name = f"[{c['name']}]({c['url']})" if c["url"] else c["name"]
             desc = c["description"].replace("|", "/")
             lines.append(f"| {name} | {desc} | {c['pricing']} | {c['similarity']}/5 |")
         lines.append("")
-    lines += ["**Gaps:**", _bullets(comp["gaps"]), "", "**Demand signals:**",
-              _bullets(comp["demand_signals"]), ""]
+    lines += [f"**{t['gaps']}:**", _bullets(comp["gaps"], none), "", f"**{t['demand']}:**",
+              _bullets(comp["demand_signals"], none), ""]
 
-    lines += ["## How money is made", "", biz["summary"], ""]
+    lines += [f"## {t['money']}", "", biz["summary"], ""]
     for m in biz["comparable_models"]:
         seen = ", ".join(m["seen_at"]) or "n/a"
-        lines.append(f"- **{m['model']}** ({m['fit']} fit): {m['how_it_works']} Seen at: {seen}.")
-    lines += ["", f"**Recommended:** {biz['recommended_model']}", "",
-              f"**Unit economics:** {biz['unit_economics']}", "",
-              "**Price points:**", _bullets(biz["price_points"]), "",
-              "**Market signals:**", _bullets(biz["market_signals"]), ""]
+        fit = t["fits"].get(m["fit"], m["fit"])
+        lines.append(f"- **{m['model']}** ({t['fit']} {fit}): {m['how_it_works']} "
+                     f"{t['seen_at']}: {seen}.")
+    lines += ["", f"**{t['recommended']}:** {biz['recommended_model']}", "",
+              f"**{t['unit_economics']}:** {biz['unit_economics']}", "",
+              f"**{t['price_points']}:**", _bullets(biz["price_points"], none), "",
+              f"**{t['market_signals']}:**", _bullets(biz["market_signals"], none), ""]
 
-    lines += ["## Scorecard", "", "| Criterion | Weight | Score | Why |", "|---|---|---|---|"]
+    lines += [f"## {t['scorecard']}", "", "| " + " | ".join(t["score_cols"]) + " |",
+              "|---|---|---|---|"]
     for c in r["scorecard"]["criteria"]:
         why = c["justification"].replace("|", "/")
-        lines.append(f"| {c['label']} | {int(c['weight'] * 100)}% | {c['score']}/5 | {why} |")
-    lines += ["", "**Why it could fail:**", _bullets(r["scorecard"]["premortem"]), ""]
+        label = t["criteria"].get(c["key"], c["label"])
+        lines.append(f"| {label} | {int(c['weight'] * 100)}% | {c['score']}/5 | {why} |")
+    lines += ["", f"**{t['premortem']}:**", _bullets(r["scorecard"]["premortem"], none), ""]
 
     lines += [
-        "## How to execute", "",
-        f"**Positioning:** {plan['positioning']}", "",
-        "**MVP scope:**", _bullets(plan["mvp_scope"]), "",
-        "**Don't build yet:**", _bullets(plan["not_to_build"]), "",
-        f"**Validation test this week:** {plan['validation_test']}", "",
-        "**First 10 customers:**", _bullets(plan["first_customers"]), "",
-        f"**Pricing hypothesis:** {plan['pricing_hypothesis']}", "",
+        f"## {t['execute']}", "",
+        f"**{t['positioning']}:** {plan['positioning']}", "",
+        f"**{t['mvp']}:**", _bullets(plan["mvp_scope"], none), "",
+        f"**{t['dont_build']}:**", _bullets(plan["not_to_build"], none), "",
+        f"**{t['validation']}:** {plan['validation_test']}", "",
+        f"**{t['customers']}:**", _bullets(plan["first_customers"], none), "",
+        f"**{t['pricing']}:** {plan['pricing_hypothesis']}", "",
     ]
     for phase in plan["roadmap"]:
-        lines += [f"**{phase['window']}:**", _bullets(phase["goals"]), ""]
-    lines += ["**Metrics to watch:**", _bullets(plan["key_metrics"]), "", "## Sources", ""]
-    lines += [f"- [{s['id']}] [{s['title']}]({s['url']})" for s in r["sources"]] or ["- (none)"]
+        lines += [f"**{phase['window']}:**", _bullets(phase["goals"], none), ""]
+    lines += [f"**{t['metrics']}:**", _bullets(plan["key_metrics"], none), "",
+              f"## {t['sources']}", ""]
+    lines += [f"- [{s['id']}] [{s['title']}]({s['url']})" for s in r["sources"]] or [f"- {none}"]
     u = r["usage"]
-    lines += [
-        "",
-        "---",
-        f"_Mode {r['mode']} · {u['llm_calls']} LLM calls · {u['input_tokens']} in / "
-        f"{u['output_tokens']} out tokens · {u['search_credits']} search credits · "
-        f"est. ${u['cost_usd']:.4f} · {r['generated_at']}_",
-    ]
+    footer = t["footer"].format(
+        mode=r["mode"], calls=u["llm_calls"], tin=u["input_tokens"], tout=u["output_tokens"],
+        credits=u["search_credits"], cost=u["cost_usd"], when=r["generated_at"],
+    )
+    lines += ["", "---", f"_{footer}_"]
     return "\n".join(lines) + "\n"

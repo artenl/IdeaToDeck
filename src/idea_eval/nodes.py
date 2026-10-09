@@ -52,8 +52,9 @@ def emit(event: dict[str, Any]) -> None:
     writer(event)
 
 
-def node_event(node: str, status: str, detail: str = "") -> None:
-    emit({"type": "node", "node": node, "status": status, "detail": detail})
+def node_event(node: str, status: str, detail: str = "", **data: Any) -> None:
+    """`detail` is an English summary (CLI); `data` lets the UI build its own wording."""
+    emit({"type": "node", "node": node, "status": status, "detail": detail, "data": data})
 
 
 def usage_event(usage: dict[str, Any]) -> None:
@@ -107,13 +108,14 @@ async def brief_node(state: IdeaState, config: RunnableConfig) -> dict[str, Any]
     node_event("brief", "start", "Parsing idea")
     brief, usage = await deps.llm.structured(
         node="brief", tier="worker", mode=state["mode"], schema=IdeaBrief,
-        system=prompts.BRIEF, user=_idea_block(state),
+        system=prompts.system(prompts.BRIEF, state, node="brief"), user=_idea_block(state),
     )
     usage_event(usage)
     queries = _clean_queries(brief.queries, deps.settings.max_queries)
     if not queries:
         queries = [" ".join(state["idea"].split())[:200]]
-    node_event("brief", "done", f"{brief.title} · {len(queries)} queries")
+    node_event("brief", "done", f"{brief.title} · {len(queries)} queries",
+               title=brief.title, queries=len(queries))
     return {"brief": brief, "pending_queries": queries, "research_round": 1, "usage": [usage]}
 
 
@@ -124,15 +126,15 @@ def fan_out_searches(state: IdeaState) -> list[Send]:
 async def search_node(task: SearchTask, config: RunnableConfig) -> dict[str, Any]:
     deps = _deps(config)
     query = task["query"]
-    node_event("search", "start", query)
+    node_event("search", "start", query, query=query)
     try:
         results, credits = await deps.search.search(query, deps.settings.results_per_query)
     except SearchError as exc:
-        node_event("search", "error", f"{query}: {exc}")
+        node_event("search", "error", f"{query}: {exc}", query=query, reason=str(exc))
         return {"queries_done": [query], "warnings": [f"Search failed: {exc}"]}
     usage = {"node": "search", "model": "tavily", "credits": credits, "cost_usd": 0.0}
     usage_event(usage)
-    node_event("search", "done", f"{len(results)} hits · {query}")
+    node_event("search", "done", f"{len(results)} hits · {query}", hits=len(results), query=query)
     return {
         "raw_results": [{**r, "query": query} for r in results],
         "queries_done": [query],
@@ -174,7 +176,8 @@ async def gather_node(state: IdeaState, config: RunnableConfig) -> dict[str, Any
         ))
         if len(sources) >= settings.max_sources:
             break
-    node_event("gather", "done", f"{len(sources)} sources from {len(per_domain)} domains")
+    node_event("gather", "done", f"{len(sources)} sources from {len(per_domain)} domains",
+               sources=len(sources), domains=len(per_domain))
     return {"sources": sources}
 
 
@@ -187,14 +190,15 @@ async def competitor_node(state: IdeaState, config: RunnableConfig) -> dict[str,
     )
     report, usage = await deps.llm.structured(
         node="competitor_analyst", tier="worker", mode=state["mode"], schema=CompetitorReport,
-        system=prompts.COMPETITORS, user=user,
+        system=prompts.system(prompts.COMPETITORS, state), user=user,
     )
     usage_event(usage)
     for c in report.competitors:
         c.similarity = clamp_score(c.similarity)
     report.competitors = sorted(report.competitors, key=lambda c: -c.similarity)[:8]
     node_event("competitor_analyst", "done",
-               f"exists: {report.existence} · {len(report.competitors)} competitors")
+               f"exists: {report.existence} · {len(report.competitors)} competitors",
+               existence=report.existence, competitors=len(report.competitors))
     return {"competitors": report, "usage": [usage]}
 
 
@@ -207,10 +211,11 @@ async def business_node(state: IdeaState, config: RunnableConfig) -> dict[str, A
     )
     report, usage = await deps.llm.structured(
         node="business_analyst", tier="worker", mode=state["mode"], schema=BusinessModelReport,
-        system=prompts.BUSINESS, user=user,
+        system=prompts.system(prompts.BUSINESS, state), user=user,
     )
     usage_event(usage)
-    node_event("business_analyst", "done", f"{len(report.comparable_models)} revenue models")
+    node_event("business_analyst", "done", f"{len(report.comparable_models)} revenue models",
+               models=len(report.comparable_models))
     return {"business": report, "usage": [usage]}
 
 
@@ -225,9 +230,10 @@ async def evidence_check_node(state: IdeaState, config: RunnableConfig) -> dict[
     ]
     if comp.needs_more_research and followups and research_round < settings.max_research_rounds:
         node_event("evidence_check", "done",
-                   f"Evidence thin, research round {research_round + 1}")
+                   f"Evidence thin, research round {research_round + 1}",
+                   round=research_round + 1)
         return {"pending_queries": followups, "research_round": research_round + 1}
-    node_event("evidence_check", "done", "Evidence sufficient")
+    node_event("evidence_check", "done", "Evidence sufficient", enough=True)
     return {"pending_queries": []}
 
 
@@ -248,11 +254,12 @@ async def judge_node(state: IdeaState, config: RunnableConfig) -> dict[str, Any]
     )
     card, usage = await deps.llm.structured(
         node="judge", tier="senior", mode=state["mode"], schema=Scorecard,
-        system=prompts.JUDGE, user=user,
+        system=prompts.system(prompts.JUDGE, state), user=user,
     )
     usage_event(usage)
     score = overall_score(card)
-    node_event("judge", "done", f"{score}/100 · {verdict(score)}")
+    node_event("judge", "done", f"{score}/100 · {verdict(score)}", score=score,
+               verdict=verdict(score))
     return {"scorecard": card, "usage": [usage]}
 
 
@@ -269,10 +276,11 @@ async def strategist_node(state: IdeaState, config: RunnableConfig) -> dict[str,
     )
     plan, usage = await deps.llm.structured(
         node="strategist", tier="senior", mode=state["mode"], schema=ExecutionPlan,
-        system=prompts.STRATEGIST, user=user,
+        system=prompts.system(prompts.STRATEGIST, state), user=user,
     )
     usage_event(usage)
-    node_event("strategist", "done", f"MVP: {len(plan.mvp_scope)} features")
+    node_event("strategist", "done", f"MVP: {len(plan.mvp_scope)} features",
+               mvp=len(plan.mvp_scope))
     return {"plan": plan, "usage": [usage]}
 
 
@@ -280,5 +288,6 @@ async def report_node(state: IdeaState, config: RunnableConfig) -> dict[str, Any
     node_event("report", "start", "Compiling report")
     result = build_result(state)
     node_event("report", "done",
-               f"{result['score']['overall']}/100 · ${result['usage']['cost_usd']:.4f}")
+               f"{result['score']['overall']}/100 · ${result['usage']['cost_usd']:.4f}",
+               score=result["score"]["overall"], cost=result["usage"]["cost_usd"])
     return {"result": result}

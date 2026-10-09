@@ -11,22 +11,28 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/i18n.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
   <div class="crt" aria-hidden="true"></div>
 
+  <!-- Text is English by default; app.js swaps every [data-i18n*] string for the chosen language. -->
   <header class="topbar">
     <div class="brand"><span class="led led-mint" aria-hidden="true"></span>IDEA<span class="slash">//</span>DECK<small id="version"></small></div>
     <div class="strip" id="strip" hidden>
-      <span>LLM <b id="strip-model">HAIKU 5.5</b></span>
-      <span>RECON <b>TAVILY</b></span>
-      <span>QUOTA <b id="strip-quota">—</b></span>
+      <span><span data-i18n="strip.llm">LLM</span> <b id="strip-model">HAIKU 5.5</b></span>
+      <span><span data-i18n="strip.recon">RECON</span> <b>TAVILY</b></span>
+      <span><span data-i18n="strip.quota">QUOTA</span> <b id="strip-quota">—</b></span>
     </div>
     <div class="who" id="who" hidden>
       <span class="operator" id="operator"></span>
-      <button class="btn btn-ghost" id="keys-btn" type="button" hidden>KEYS</button>
-      <button class="btn btn-ghost" id="logout" type="button">EJECT</button>
+      <button class="btn btn-ghost" id="keys-btn" type="button" hidden data-i18n="btn.keys">KEYS</button>
+      <button class="btn btn-ghost" id="logout" type="button" data-i18n="btn.eject">EJECT</button>
+    </div>
+    <div class="lang-switch" role="group" aria-label="Interface language" data-i18n-aria="lang.label">
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="fr" aria-pressed="false">FR</button>
     </div>
     <time class="clock" id="clock"></time>
   </header>
@@ -34,18 +40,18 @@
   <!-- AUTH -->
   <section class="screen" id="auth" hidden>
     <div class="panel auth-panel">
-      <div class="panel-head"><span>SECURE TERMINAL</span><span class="code">AUTH-00</span></div>
+      <div class="panel-head"><span data-i18n="auth.title">SECURE TERMINAL</span><span class="code">AUTH-00</span></div>
       <pre class="boot" id="boot" aria-hidden="true"></pre>
       <form id="login-form" class="login-form" autocomplete="on">
         <label class="field">
-          <span>OPERATOR ID</span>
-          <input id="email" name="email" type="email" autocomplete="username" required maxlength="254" spellcheck="false" placeholder="you@domain.com">
+          <span data-i18n="auth.email">OPERATOR ID</span>
+          <input id="email" name="email" type="email" autocomplete="username" required maxlength="254" spellcheck="false" placeholder="you@domain.com" data-i18n-ph="auth.email_ph">
         </label>
         <label class="field">
-          <span>PASSPHRASE</span>
+          <span data-i18n="auth.password">PASSPHRASE</span>
           <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256" placeholder="••••••••">
         </label>
-        <button class="btn btn-primary" type="submit" id="login-btn">JACK IN <span aria-hidden="true">▶</span></button>
+        <button class="btn btn-primary" type="submit" id="login-btn"><span data-i18n="auth.submit">JACK IN</span> <span aria-hidden="true">▶</span></button>
         <p class="msg" id="login-msg" role="alert"></p>
       </form>
     </div>
@@ -54,86 +60,86 @@
   <!-- COMING SOON -->
   <section class="screen" id="soon" hidden>
     <div class="panel soon-panel">
-      <div class="panel-head"><span>NODE STATUS</span><span class="code">ERR-403</span></div>
-      <h1 class="glitch" data-text="COMING SOON">COMING SOON</h1>
-      <p>This deck is in private beta. Your ID has been logged on the waitlist. Access opens when the node goes public.</p>
-      <button class="btn btn-ghost" type="button" id="soon-back"><span aria-hidden="true">◀</span> BACK</button>
+      <div class="panel-head"><span data-i18n="soon.status">NODE STATUS</span><span class="code">ERR-403</span></div>
+      <h1 class="glitch" id="soon-title" data-text="COMING SOON" data-i18n="soon.title">COMING SOON</h1>
+      <p data-i18n="soon.body">This deck is in private beta. Your ID has been logged on the waitlist. Access opens when the node goes public.</p>
+      <button class="btn btn-ghost" type="button" id="soon-back"><span aria-hidden="true">◀</span> <span data-i18n="soon.back">BACK</span></button>
     </div>
   </section>
 
   <!-- DECK -->
   <main class="deck" id="deck" hidden>
     <aside class="panel archive">
-      <div class="panel-head"><span>ARCHIVE</span><span class="code" id="archive-count">0</span></div>
+      <div class="panel-head"><span data-i18n="archive.title">ARCHIVE</span><span class="code" id="archive-count">0</span></div>
       <ol class="history" id="history"></ol>
-      <p class="empty" id="history-empty">No scans yet.</p>
+      <p class="empty" id="history-empty" data-i18n="archive.empty">No scans yet.</p>
     </aside>
 
     <div class="console">
       <section class="panel keys-panel" id="keys-panel" hidden aria-labelledby="keys-title">
-        <div class="panel-head"><span id="keys-title">MOD-00 // API KEYS</span><button type="button" class="btn btn-ghost btn-xs" id="keys-close">CLOSE</button></div>
+        <div class="panel-head"><span id="keys-title" data-i18n="keys.title">MOD-00 // API KEYS</span><button type="button" class="btn btn-ghost btn-xs" id="keys-close" data-i18n="keys.close">CLOSE</button></div>
         <p class="keys-intro" id="keys-intro">Keys are stored on this server and override the ones from the installer. Your browser only ever sees them masked.</p>
         <form id="keys-form" class="keys-form" autocomplete="off">
           <div class="key-row" data-key="anthropic_api_key">
-            <div class="key-label"><b>ANTHROPIC</b><span class="dim">Claude: analysis + scoring</span><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">get a key ↗</a></div>
+            <div class="key-label"><b>ANTHROPIC</b><span class="dim" data-i18n="keys.anthropic_desc">Claude: analysis + scoring</span><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" data-i18n="keys.get">get a key ↗</a></div>
             <div class="key-current"><i class="led"></i><span class="key-masked">—</span><span class="key-source dim"></span></div>
-            <label class="sr-only" for="anthropic_api_key">New Anthropic API key</label>
-            <input type="password" id="anthropic_api_key" placeholder="sk-ant-…   (empty = keep current)" autocomplete="off" spellcheck="false" maxlength="300">
+            <label class="sr-only" for="anthropic_api_key" data-i18n="keys.anthropic_label">New Anthropic API key</label>
+            <input type="password" id="anthropic_api_key" placeholder="sk-ant-…   (empty = keep current)" data-i18n-ph="keys.anthropic_ph" autocomplete="off" spellcheck="false" maxlength="300">
             <p class="key-result" role="status"></p>
           </div>
           <div class="key-row" data-key="tavily_api_key">
-            <div class="key-label"><b>TAVILY</b><span class="dim">web search · 1,000 free/month</span><a href="https://app.tavily.com" target="_blank" rel="noopener noreferrer">get a key ↗</a></div>
+            <div class="key-label"><b>TAVILY</b><span class="dim" data-i18n="keys.tavily_desc">web search · 1,000 free/month</span><a href="https://app.tavily.com" target="_blank" rel="noopener noreferrer" data-i18n="keys.get">get a key ↗</a></div>
             <div class="key-current"><i class="led"></i><span class="key-masked">—</span><span class="key-source dim"></span></div>
-            <label class="sr-only" for="tavily_api_key">New Tavily API key</label>
-            <input type="password" id="tavily_api_key" placeholder="tvly-…   (empty = keep current)" autocomplete="off" spellcheck="false" maxlength="300">
+            <label class="sr-only" for="tavily_api_key" data-i18n="keys.tavily_label">New Tavily API key</label>
+            <input type="password" id="tavily_api_key" placeholder="tvly-…   (empty = keep current)" data-i18n-ph="keys.tavily_ph" autocomplete="off" spellcheck="false" maxlength="300">
             <p class="key-result" role="status"></p>
           </div>
           <div class="controls">
-            <span class="dim keys-note">The Anthropic test sends one tiny message (under $0.0001).</span>
-            <button type="button" class="btn btn-ghost" id="keys-test">TEST CURRENT</button>
-            <button type="submit" class="btn btn-primary" id="keys-save">SAVE &amp; TEST</button>
+            <span class="dim keys-note" data-i18n="keys.note">The Anthropic test sends one tiny message (under $0.0001).</span>
+            <button type="button" class="btn btn-ghost" id="keys-test" data-i18n="keys.test">TEST CURRENT</button>
+            <button type="submit" class="btn btn-primary" id="keys-save" data-i18n="keys.save">SAVE &amp; TEST</button>
           </div>
         </form>
       </section>
 
       <section class="panel input-panel">
-        <div class="panel-head"><span>MOD-01 // INPUT</span><span class="code">describe it in plain words</span></div>
+        <div class="panel-head"><span data-i18n="input.title">MOD-01 // INPUT</span><span class="code" data-i18n="input.hint">describe it in plain words</span></div>
         <form id="run-form" class="run-form">
-          <label class="sr-only" for="idea">Your idea</label>
+          <label class="sr-only" for="idea" data-i18n="input.idea_label">Your idea</label>
           <div class="prompt-wrap">
             <span class="caret" aria-hidden="true">&gt;</span>
-            <textarea id="idea" rows="4" minlength="8" maxlength="2000" required placeholder="an app that tells renters when their houseplants need water, sold as a subscription with sensor kits…"></textarea>
+            <textarea id="idea" rows="4" minlength="8" maxlength="2000" required placeholder="an app that tells renters when their houseplants need water, sold as a subscription with sensor kits…" data-i18n-ph="input.idea_ph"></textarea>
           </div>
           <details class="profile">
-            <summary>OPERATOR PROFILE <span class="dim">(optional: skills, budget, hours/week)</span></summary>
-            <label class="sr-only" for="profile">About you</label>
-            <textarea id="profile" rows="2" maxlength="1000" placeholder="solo dev, Python + React, €2k budget, 10h/week, based in France"></textarea>
+            <summary><span data-i18n="input.profile">OPERATOR PROFILE</span> <span class="dim" data-i18n="input.profile_hint">(optional: skills, budget, hours/week)</span></summary>
+            <label class="sr-only" for="profile" data-i18n="input.profile_label">About you</label>
+            <textarea id="profile" rows="2" maxlength="1000" placeholder="solo dev, Python + React, €2k budget, 10h/week, based in France" data-i18n-ph="input.profile_ph"></textarea>
           </details>
           <div class="controls">
-            <button type="button" class="mode" id="mode" role="switch" aria-checked="false" aria-label="Deep mode">
-              <span class="mode-label mode-eco">ECO</span>
+            <button type="button" class="mode" id="mode" role="switch" aria-checked="false" aria-label="Deep mode" data-i18n-aria="mode.aria">
+              <span class="mode-label mode-eco" data-i18n="mode.eco">ECO</span>
               <span class="mode-track"><span class="mode-knob"></span></span>
-              <span class="mode-label mode-deep">DEEP</span>
+              <span class="mode-label mode-deep" data-i18n="mode.deep">DEEP</span>
             </button>
-            <div class="est"><span class="dim">EST. COST</span> <b id="est">~$0.02</b> <span class="dim" id="est-model">all Haiku 5.5</span></div>
-            <button type="submit" class="btn btn-primary" id="go">EXECUTE <span aria-hidden="true">▶</span></button>
+            <div class="est"><span class="dim" data-i18n="mode.est">EST. COST</span> <b id="est">~$0.02</b> <span class="dim" id="est-model">all Haiku 5.5</span> <span class="report-lang" id="report-lang" data-i18n="input.report_lang">report in English</span></div>
+            <button type="submit" class="btn btn-primary" id="go"><span data-i18n="input.go">EXECUTE</span> <span aria-hidden="true">▶</span></button>
           </div>
           <p class="msg" id="run-msg" role="alert"></p>
         </form>
       </section>
 
       <section class="panel pipeline-panel">
-        <div class="panel-head"><span>MOD-02 // PIPELINE</span><span class="code"><span id="run-status">IDLE</span> · <span id="run-cost">$0.0000</span></span></div>
+        <div class="panel-head"><span data-i18n="pipe.title">MOD-02 // PIPELINE</span><span class="code"><span id="run-status">IDLE</span> · <span id="run-cost">$0.0000</span></span></div>
         <ol class="pipeline" id="pipeline">
-          <li data-node="brief"><i class="led"></i><b>BRIEF</b><small>parse idea</small></li>
-          <li data-node="search"><i class="led"></i><b>RECON</b><small id="search-count">web search</small></li>
-          <li data-node="gather"><i class="led"></i><b>SIFT</b><small>rank sources</small></li>
-          <li data-node="competitor_analyst"><i class="led"></i><b>RIVALS</b><small>does it exist</small></li>
-          <li data-node="business_analyst"><i class="led"></i><b>MONEY</b><small>business models</small></li>
-          <li data-node="evidence_check"><i class="led"></i><b>CHECK</b><small>enough evidence</small></li>
-          <li data-node="judge"><i class="led"></i><b>JUDGE</b><small>score rubric</small></li>
-          <li data-node="strategist"><i class="led"></i><b>PLAN</b><small>how to execute</small></li>
-          <li data-node="report"><i class="led"></i><b>REPORT</b><small>compile</small></li>
+          <li data-node="brief"><i class="led"></i><b data-i18n="node.brief">BRIEF</b><small data-i18n="node.brief.sub">parse idea</small></li>
+          <li data-node="search"><i class="led"></i><b data-i18n="node.search">RECON</b><small id="search-count">web search</small></li>
+          <li data-node="gather"><i class="led"></i><b data-i18n="node.gather">SIFT</b><small data-i18n="node.gather.sub">rank sources</small></li>
+          <li data-node="competitor_analyst"><i class="led"></i><b data-i18n="node.competitor_analyst">RIVALS</b><small data-i18n="node.competitor_analyst.sub">does it exist</small></li>
+          <li data-node="business_analyst"><i class="led"></i><b data-i18n="node.business_analyst">MONEY</b><small data-i18n="node.business_analyst.sub">business models</small></li>
+          <li data-node="evidence_check"><i class="led"></i><b data-i18n="node.evidence_check">CHECK</b><small data-i18n="node.evidence_check.sub">enough evidence</small></li>
+          <li data-node="judge"><i class="led"></i><b data-i18n="node.judge">JUDGE</b><small data-i18n="node.judge.sub">score rubric</small></li>
+          <li data-node="strategist"><i class="led"></i><b data-i18n="node.strategist">PLAN</b><small data-i18n="node.strategist.sub">how to execute</small></li>
+          <li data-node="report"><i class="led"></i><b data-i18n="node.report">REPORT</b><small data-i18n="node.report.sub">compile</small></li>
         </ol>
         <pre class="log" id="log" aria-live="polite"></pre>
       </section>
@@ -142,6 +148,6 @@
     </div>
   </main>
 
-  <noscript><p class="noscript">This deck needs JavaScript.</p></noscript>
+  <noscript><p class="noscript">This deck needs JavaScript. · Ce deck nécessite JavaScript.</p></noscript>
 </body>
 </html>

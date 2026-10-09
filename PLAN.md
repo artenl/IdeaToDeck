@@ -314,4 +314,4 @@ IdeaToDeck/
 4. **Search:** the Tavily free tier for now. SearXNG is phase 3.
 5. **Hosting:** the owner's Hostinger KVM 2 (Debian 13, 2 vCPU / 8 GB). Caddy handles automatic HTTPS when a domain is given. If ports 80/443 are busy, the installer falls back to binding on localhost.
 6. **Distribution:** a one-line `install.sh` from the public repo, so anyone can self-host it with their own keys.
-7. **Report language:** English for v0.1.
+7. **Languages:** English and French, switchable in the top bar. Reports are written in the language chosen when the scan starts.

@@ -64,10 +64,13 @@ async def run_pipeline(
     deps: Deps,
     mode: Mode = "cheap",
     profile: str = "",
+    lang: str = "en",
     on_event: EventCallback | None = None,
 ) -> dict[str, Any]:
     """Run the whole graph and return the final report dict."""
-    state: IdeaState = {"idea": idea.strip(), "profile": profile.strip(), "mode": mode}
+    state: IdeaState = {
+        "idea": idea.strip(), "profile": profile.strip(), "mode": mode, "lang": lang,
+    }
     config = {"configurable": {"deps": deps}, "recursion_limit": 60}
     final: dict[str, Any] | None = None
     async for kind, chunk in build_graph().astream(
