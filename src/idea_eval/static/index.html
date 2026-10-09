@@ -25,6 +25,7 @@
     </div>
     <div class="who" id="who" hidden>
       <span class="operator" id="operator"></span>
+      <button class="btn btn-ghost" id="keys-btn" type="button" hidden>KEYS</button>
       <button class="btn btn-ghost" id="logout" type="button">EJECT</button>
     </div>
     <time class="clock" id="clock"></time>
@@ -69,6 +70,32 @@
     </aside>
 
     <div class="console">
+      <section class="panel keys-panel" id="keys-panel" hidden aria-labelledby="keys-title">
+        <div class="panel-head"><span id="keys-title">MOD-00 // API KEYS</span><button type="button" class="btn btn-ghost btn-xs" id="keys-close">CLOSE</button></div>
+        <p class="keys-intro" id="keys-intro">Keys are stored on this server and override the ones from the installer. Your browser only ever sees them masked.</p>
+        <form id="keys-form" class="keys-form" autocomplete="off">
+          <div class="key-row" data-key="anthropic_api_key">
+            <div class="key-label"><b>ANTHROPIC</b><span class="dim">Claude: analysis + scoring</span><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">get a key ↗</a></div>
+            <div class="key-current"><i class="led"></i><span class="key-masked">—</span><span class="key-source dim"></span></div>
+            <label class="sr-only" for="anthropic_api_key">New Anthropic API key</label>
+            <input type="password" id="anthropic_api_key" placeholder="sk-ant-…   (empty = keep current)" autocomplete="off" spellcheck="false" maxlength="300">
+            <p class="key-result" role="status"></p>
+          </div>
+          <div class="key-row" data-key="tavily_api_key">
+            <div class="key-label"><b>TAVILY</b><span class="dim">web search · 1,000 free/month</span><a href="https://app.tavily.com" target="_blank" rel="noopener noreferrer">get a key ↗</a></div>
+            <div class="key-current"><i class="led"></i><span class="key-masked">—</span><span class="key-source dim"></span></div>
+            <label class="sr-only" for="tavily_api_key">New Tavily API key</label>
+            <input type="password" id="tavily_api_key" placeholder="tvly-…   (empty = keep current)" autocomplete="off" spellcheck="false" maxlength="300">
+            <p class="key-result" role="status"></p>
+          </div>
+          <div class="controls">
+            <span class="dim keys-note">The Anthropic test sends one tiny message (under $0.0001).</span>
+            <button type="button" class="btn btn-ghost" id="keys-test">TEST CURRENT</button>
+            <button type="submit" class="btn btn-primary" id="keys-save">SAVE &amp; TEST</button>
+          </div>
+        </form>
+      </section>
+
       <section class="panel input-panel">
         <div class="panel-head"><span>MOD-01 // INPUT</span><span class="code">describe it in plain words</span></div>
         <form id="run-form" class="run-form">

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from .auth import hash_password, normalize_email, valid_email
 from .config import get_settings
 from .db import Database
+from .keys import KEY_NAMES, check_keys, public_keys, runtime_settings
 
 MIN_PASSWORD = 8
 
@@ -37,12 +38,13 @@ def cmd_run(args: argparse.Namespace) -> None:
     from .report import to_markdown
     from .search import TavilySearch
 
-    settings = get_settings()
+    db = _db()
+    settings = runtime_settings(get_settings(), db)
     if not settings.anthropic_api_key or not settings.tavily_api_key:
-        sys.exit("Set ANTHROPIC_API_KEY and TAVILY_API_KEY (environment or .env).")
+        sys.exit("Set the API keys in the app (KEYS button) or in .env.")
     deps = Deps(
         llm=AnthropicLLM(settings),
-        search=TavilySearch(settings.tavily_api_key, _db(), settings.search_cache_days),
+        search=TavilySearch(settings.tavily_api_key, db, settings.search_cache_days),
         settings=settings,
     )
 
@@ -61,6 +63,20 @@ def cmd_run(args: argparse.Namespace) -> None:
         print(f"Saved to {args.out}", file=sys.stderr)
     else:
         print(output)
+
+
+def cmd_keys_test(_args: argparse.Namespace) -> None:
+    db = _db()
+    base = get_settings()
+    settings = runtime_settings(base, db)
+    shown = public_keys(base, db)
+    results = asyncio.run(check_keys(
+        {name: getattr(settings, name) for name in KEY_NAMES}, settings.cheap_model
+    ))
+    for name in KEY_NAMES:
+        r = results[name]
+        print(f"{name:<18} {shown[name]['masked'] or '-':<16} ({shown[name]['source']}) "
+              f"{r['status'].upper()}: {r['message']}")
 
 
 def cmd_users_add(args: argparse.Namespace) -> None:
@@ -142,6 +158,11 @@ def build_parser() -> argparse.ArgumentParser:
     pw.add_argument("email")
     pw.add_argument("--password-stdin", action="store_true")
     pw.set_defaults(func=cmd_users_passwd)
+
+    keys = sub.add_parser("keys", help="API keys")
+    ksub = keys.add_subparsers(dest="keys_command", required=True)
+    kt = ksub.add_parser("test", help="Check the Anthropic and Tavily keys in use")
+    kt.set_defaults(func=cmd_keys_test)
 
     wl = sub.add_parser("waitlist", help="Show emails that got 'coming soon'")
     wl.set_defaults(func=cmd_waitlist)

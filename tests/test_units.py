@@ -81,3 +81,33 @@ def test_tavily_errors_raise_search_error(status, message):
 def test_tavily_requires_key():
     with pytest.raises(SearchError):
         asyncio.run(TavilySearch("").search("q", 5))
+
+
+def _api_error(cls, status: int, message: str):
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    body = {"type": "error", "error": {"type": "invalid_request_error", "message": message}}
+    return cls(message=f"Error code: {status} - {body}",
+               response=httpx.Response(status, request=request), body=body)
+
+
+def test_friendly_errors_unwrap_langchain_anthropic_exceptions():
+    from langchain_anthropic.chat_models import (
+        AnthropicAuthenticationError,
+        AnthropicInvalidRequestError,
+        AnthropicModelNotFoundError,
+    )
+
+    from idea_eval.runs import friendly_error
+
+    credits = _api_error(AnthropicInvalidRequestError, 400,
+                         "Your credit balance is too low to access the Anthropic API.")
+    assert "no credits" in friendly_error(credits)
+    other = _api_error(AnthropicInvalidRequestError, 400, "output_config.format: bad schema")
+    assert friendly_error(other) == (
+        "Anthropic refused the request (400): output_config.format: bad schema"
+    )
+    auth = _api_error(AnthropicAuthenticationError, 401, "invalid x-api-key")
+    assert "rejected the API key" in friendly_error(auth)
+    missing = _api_error(AnthropicModelNotFoundError, 404, "model: claude-nope")
+    assert friendly_error(missing).startswith("Anthropic model not found: model: claude-nope")
+    assert friendly_error(ValueError("x")) == "Pipeline failed (ValueError)."

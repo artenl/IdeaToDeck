@@ -5,8 +5,11 @@ import logging
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+import anthropic
+
 from .db import Database
 from .graph import run_pipeline
+from .keys import api_error_message
 from .llm import LLMError
 from .nodes import Deps
 
@@ -34,16 +37,29 @@ class RunChannel:
 
 
 def friendly_error(exc: BaseException) -> str:
-    name = type(exc).__name__
-    if name == "AuthenticationError":
+    # langchain-anthropic re-raises SDK errors as subclasses (e.g.
+    # AnthropicInvalidRequestError), so match on the SDK base classes.
+    if isinstance(exc, anthropic.AuthenticationError):
         return "Anthropic rejected the API key (check ANTHROPIC_API_KEY)."
-    if name == "RateLimitError":
+    if isinstance(exc, anthropic.RateLimitError):
         return "Anthropic rate limit hit. Try again in a minute."
-    if name in ("APIConnectionError", "APITimeoutError"):
+    if isinstance(exc, anthropic.APIConnectionError):  # includes timeouts
         return "Could not reach the Anthropic API."
+    if isinstance(exc, anthropic.APIStatusError):
+        message = api_error_message(exc)
+        if "credit balance" in message.lower():
+            return (
+                "Your Anthropic account has no credits. Add some at "
+                "console.anthropic.com (Settings > Billing), then run it again."
+            )
+        if isinstance(exc, anthropic.PermissionDeniedError):
+            return f"Anthropic denied access: {message}"
+        if isinstance(exc, anthropic.NotFoundError):
+            return f"Anthropic model not found: {message} (check CHEAP_MODEL / DEEP_MODEL)."
+        return f"Anthropic refused the request ({exc.status_code}): {message}"
     if isinstance(exc, LLMError):
         return str(exc)[:300]
-    return f"Pipeline failed ({name})."
+    return f"Pipeline failed ({type(exc).__name__})."
 
 
 class RunManager:

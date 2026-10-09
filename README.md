@@ -22,12 +22,22 @@ curl -fsSL https://raw.githubusercontent.com/artenl/IsThisIdeaGood/HEAD/install.
 The installer:
 
 - installs Docker if it's missing and clones this repo to `/opt/isthisideagood`,
-- asks for your **Anthropic API key** ([console.anthropic.com](https://console.anthropic.com/settings/keys)) and your **Tavily API key** ([app.tavily.com](https://app.tavily.com), 1,000 free searches a month),
+- asks for your **Anthropic API key** ([console.anthropic.com](https://console.anthropic.com/settings/keys)) and your **Tavily API key** ([app.tavily.com](https://app.tavily.com), 1,000 free searches a month). You can press Enter to skip both and add them later in the app,
 - asks for an **admin email and password**. The admin is whitelisted with unlimited runs, and only a hash of the password is stored,
 - asks for a **domain**. If you give one, Caddy fetches a Let's Encrypt certificate and serves HTTPS on 80/443. Without one, the app is served over plain HTTP on port 8080,
 - builds and starts everything with Docker Compose.
 
-**Updating:** re-run the same command. Your `.env` and database are kept. Use `RECONFIGURE=1` to change keys, domain or admin.
+**Updating:** re-run the same command. Your `.env`, database, saved keys and `docker-compose.override.yml` are kept. Use `RECONFIGURE=1` to change the domain or admin from the installer.
+
+## API keys
+
+Admins see a **KEYS** button in the top bar. Paste a new Anthropic or Tavily key there and press **SAVE & TEST**. Each key is checked live before it's saved:
+
+- **Invalid** keys are rejected and never saved.
+- **Valid but out of credits** keys are saved with a warning. They start working as soon as you add credits.
+- **TEST CURRENT** re-checks the keys in use. For Anthropic it sends one tiny message, because listing models works even on an account with no credits. For Tavily it uses the free usage endpoint and shows how many monthly searches you've used.
+
+Keys saved in the app take priority over `.env` and apply to the next run, with no restart. Only the server stores them; the browser sees them masked. From the server you can also run `docker compose exec app idea-eval keys test`.
 
 **Non-interactive:** put the answers after `sudo`:
 
@@ -160,6 +170,7 @@ src/idea_eval/
   schemas.py    Pydantic schemas for every LLM output
   scoring.py    rubric, weighted score, verdict, confidence
   llm.py        Claude via langchain-anthropic, cost ledger
+  keys.py       API keys: app-saved or .env, live checks
   search.py     Tavily client with SQLite cache
   web.py        FastAPI: auth, runs API, SSE progress, security headers
   runs.py       background runs + event fan-out

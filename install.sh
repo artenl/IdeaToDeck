@@ -185,12 +185,19 @@ configure() {
   say "  Keys stay on this server in $ENV_FILE (readable by root only)."
   say "  Anthropic key: https://console.anthropic.com/settings/keys"
   say "  Tavily key (1,000 free searches/month): https://app.tavily.com"
-  ask ANTHROPIC_API_KEY "Anthropic API key" "" secret
-  [ -n "$ANTHROPIC_API_KEY" ] || die "An Anthropic API key is required."
-  check_anthropic_key
-  ask TAVILY_API_KEY "Tavily API key" "" secret
-  [ -n "$TAVILY_API_KEY" ] || die "A Tavily API key is required."
-  [[ "$TAVILY_API_KEY" == tvly-* ]] || warn "Tavily keys usually start with 'tvly-'."
+  say "  Press Enter to skip a key and add it later in the app (KEYS button, top bar)."
+  ask ANTHROPIC_API_KEY "Anthropic API key" "" "secret optional"
+  if [ -n "$ANTHROPIC_API_KEY" ]; then
+    check_anthropic_key
+  else
+    warn "No Anthropic key yet. Add it in the app with the KEYS button."
+  fi
+  ask TAVILY_API_KEY "Tavily API key" "" "secret optional"
+  if [ -z "$TAVILY_API_KEY" ]; then
+    warn "No Tavily key yet. Add it in the app with the KEYS button."
+  elif [[ "$TAVILY_API_KEY" != tvly-* ]]; then
+    warn "Tavily keys usually start with 'tvly-'."
+  fi
 
   say ""
   say "  Admin account (unlimited runs). Anyone else who signs in sees 'Coming soon'."
@@ -232,15 +239,28 @@ configure() {
   fi
 }
 
+# Sends one tiny message: listing models works even with zero credits, this doesn't.
 check_anthropic_key() {
-  local code
+  local out code msg
   if [ "${CHECK_KEYS:-1}" = "0" ]; then return 0; fi
-  code=$(curl -s -o /dev/null -w '%{http_code}' https://api.anthropic.com/v1/models \
-    -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01" || true)
+  out=$(curl -s -w '\n%{http_code}' https://api.anthropic.com/v1/messages \
+    -H @<(printf 'x-api-key: %s\n' "$ANTHROPIC_API_KEY") \
+    -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+    -d '{"model":"claude-haiku-5-5","max_tokens":32,"messages":[{"role":"user","content":"Reply with OK."}]}' \
+    || true)
+  code=${out##*$'\n'}
+  msg=$(printf '%s' "${out%$'\n'*}" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p' | head -n1)
   case "$code" in
     200) say "  Anthropic key OK" ;;
-    401|403) die "Anthropic rejected that key (HTTP $code)." ;;
-    *) warn "Could not verify the Anthropic key (HTTP $code); continuing." ;;
+    401) die "Anthropic rejected that key." ;;
+    *)
+      if [[ "$msg" == *"credit balance"* ]]; then
+        warn "The Anthropic key is valid but the account has no credits."
+        warn "Add some at console.anthropic.com > Settings > Billing (no reinstall needed)."
+      else
+        warn "Could not fully verify the Anthropic key (HTTP $code${msg:+: $msg}); continuing."
+      fi
+      ;;
   esac
 }
 

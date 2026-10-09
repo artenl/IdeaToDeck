@@ -1,6 +1,7 @@
 """SQLite storage: users, runs, search cache and waitlist. One file, zero ops."""
 
 import json
+import os
 import sqlite3
 import threading
 import time
@@ -39,6 +40,11 @@ CREATE TABLE IF NOT EXISTS search_cache (
     response_json TEXT NOT NULL,
     created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS waitlist (
     email TEXT PRIMARY KEY,
     attempts INTEGER NOT NULL DEFAULT 1,
@@ -60,6 +66,8 @@ class Database:
         self._conn = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         self._conn.row_factory = sqlite3.Row
         self._lock = threading.Lock()
+        if str(path) != ":memory:":
+            os.chmod(path, 0o600)  # holds password hashes and API keys
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
@@ -197,6 +205,21 @@ class Database:
             "INSERT OR REPLACE INTO search_cache (key, response_json, created_at) VALUES (?, ?, ?)",
             (key, json.dumps(value), time.time()),
         )
+
+    # Settings (API keys saved from the UI) ---------------------------------
+
+    def get_setting(self, key: str) -> str | None:
+        row = self._one("SELECT value FROM settings WHERE key = ?", (key,))
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        self._exec(
+            "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            (key, value, time.time()),
+        )
+
+    def delete_setting(self, key: str) -> None:
+        self._exec("DELETE FROM settings WHERE key = ?", (key,))
 
     # Waitlist --------------------------------------------------------------
 

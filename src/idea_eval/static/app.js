@@ -160,6 +160,11 @@
     renderQuota(r.data.quota);
     setMode(state.mode);
     show("deck");
+    $("keys-btn").hidden = !r.data.user.is_admin;
+    $("keys-panel").hidden = true;
+    if (r.data.user.is_admin && !r.data.keys_ready) {
+      openKeys("Add your Anthropic and Tavily API keys to start scanning.");
+    }
     await loadHistory();
     const m = location.hash.match(/^#run=([a-f0-9]{32})$/);
     if (m) openRun(m[1]);
@@ -199,6 +204,98 @@
   $("logout").addEventListener("click", async () => {
     await api("/api/logout", { method: "POST" });
     toAuth();
+  });
+
+  // ---------- API keys (admins) ----------
+
+  const KEY_SOURCE = { app: "saved in app", env: "from server .env", missing: "not set" };
+  const CHECK_STYLE = {
+    ok: ["c-mint", "✓", "ok"], no_credits: ["c-amber", "⚠", "warn"],
+    invalid: ["c-red", "✗", "bad"], error: ["c-red", "✗", "bad"], missing: ["c-dim", "·", ""],
+  };
+
+  function keyRow(name) {
+    return $("keys-form").querySelector(`.key-row[data-key="${name}"]`);
+  }
+
+  function renderKeys(keys) {
+    for (const [name, k] of Object.entries(keys || {})) {
+      const row = keyRow(name);
+      if (!row) continue;
+      row.querySelector(".key-masked").textContent = k.masked || "—";
+      row.querySelector(".key-source").textContent = KEY_SOURCE[k.source] || k.source;
+      row.querySelector(".led").className = k.configured ? "led set" : "led";
+    }
+  }
+
+  function renderChecks(checks) {
+    for (const [name, c] of Object.entries(checks || {})) {
+      const row = keyRow(name);
+      if (!row) continue;
+      const [cls, icon, led] = CHECK_STYLE[c.status] || ["c-red", "✗", "bad"];
+      const result = row.querySelector(".key-result");
+      result.className = `key-result ${cls}`;
+      result.textContent = `${icon} ${c.message}`;
+      if (led) row.querySelector(".led").className = `led ${led}`;
+    }
+  }
+
+  async function openKeys(notice) {
+    const intro = $("keys-intro");
+    if (notice) {
+      intro.textContent = notice;
+      intro.classList.add("alert");
+    }
+    $("keys-panel").hidden = false;
+    $("keys-panel").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    const r = await api("/api/admin/keys");
+    if (r.ok) renderKeys(r.data.keys);
+    const empty = [...$("keys-form").querySelectorAll("input")].find((i) => !i.value);
+    if (empty) empty.focus();
+  }
+
+  async function submitKeys(path, method, body) {
+    for (const b of [$("keys-save"), $("keys-test")]) b.disabled = true;
+    for (const p of $("keys-form").querySelectorAll(".key-result")) {
+      p.className = "key-result c-dim";
+      p.textContent = "· testing…";
+    }
+    const r = await api(path, { method, body });
+    for (const b of [$("keys-save"), $("keys-test")]) b.disabled = false;
+    for (const p of $("keys-form").querySelectorAll(".key-result")) {
+      if (p.textContent === "· testing…") p.textContent = "";
+    }
+    if (!r.ok) {
+      if (r.status === 401) return toAuth();
+      const first = $("keys-form").querySelector(".key-result");
+      first.className = "key-result c-red";
+      first.textContent = `✗ ${errText(r)}`;
+      return;
+    }
+    renderKeys(r.data.keys);
+    renderChecks(r.data.checks);
+    const me = await api("/api/me");
+    if (me.ok && me.data.keys_ready) {
+      $("keys-intro").classList.remove("alert");
+      $("keys-intro").textContent = "Keys are set. You can close this panel and run a scan.";
+    }
+  }
+
+  $("keys-btn").addEventListener("click", () => {
+    if ($("keys-panel").hidden) openKeys();
+    else $("keys-panel").hidden = true;
+  });
+  $("keys-close").addEventListener("click", () => { $("keys-panel").hidden = true; });
+  $("keys-test").addEventListener("click", () => submitKeys("/api/admin/keys/test", "POST"));
+  $("keys-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = {};
+    for (const input of $("keys-form").querySelectorAll("input")) {
+      if (input.value.trim()) body[input.id] = input.value.trim();
+    }
+    if (!Object.keys(body).length) return submitKeys("/api/admin/keys/test", "POST");
+    await submitKeys("/api/admin/keys", "PUT", body);
+    for (const input of $("keys-form").querySelectorAll("input")) input.value = "";
   });
 
   // ---------- Mode toggle ----------
@@ -390,6 +487,9 @@
     setStatus("FAILED");
     for (const li of $("pipeline").children) if (li.className === "active") li.className = "error";
     logLine("sys", msg || "Run failed.", "err");
+    if (state.me && state.me.user.is_admin && /anthropic|tavily|key|credit/i.test(msg || "")) {
+      logLine("sys", "→ open KEYS (top bar) to test or replace your API keys", "warn");
+    }
     $("go").disabled = false;
     loadHistory();
   }

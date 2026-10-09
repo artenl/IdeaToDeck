@@ -7,7 +7,7 @@ import hashlib
 import json
 import logging
 import secrets
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -22,6 +22,7 @@ from . import __version__
 from .auth import DUMMY_HASH, LoginLimiter, normalize_email, valid_email, verify_password
 from .config import Settings, get_settings
 from .db import Database
+from .keys import KEY_NAMES, check_keys, keys_ready, public_keys, runtime_settings, valid_key_format
 from .llm import AnthropicLLM
 from .nodes import Deps
 from .report import to_markdown
@@ -70,6 +71,13 @@ class LoginIn(BaseModel):
     password: str = Field(max_length=256)
 
 
+class KeysIn(BaseModel):
+    """A non-empty value sets the key; an empty string clears the app-saved key."""
+
+    anthropic_api_key: str | None = Field(default=None, max_length=300)
+    tavily_api_key: str | None = Field(default=None, max_length=300)
+
+
 class RunIn(BaseModel):
     idea: str = Field(min_length=8, max_length=2000)
     mode: Literal["cheap", "deep"] = "cheap"
@@ -98,11 +106,15 @@ def _public_user(user: dict[str, Any]) -> dict[str, Any]:
     return {"email": user["email"], "is_admin": bool(user["is_admin"])}
 
 
+KeyChecker = Callable[[dict[str, str], str], Awaitable[dict[str, dict[str, str]]]]
+
+
 def create_app(
     settings: Settings | None = None,
     *,
     db: Database | None = None,
     deps_factory: Callable[[], Deps] | None = None,
+    key_checker: KeyChecker = check_keys,
 ) -> FastAPI:
     settings = settings or get_settings()
     db = db or Database(settings.db_path)
@@ -110,13 +122,15 @@ def create_app(
     if stale:
         log.warning("marked %d interrupted runs as failed", stale)
 
-    check_keys = deps_factory is None
+    require_keys = deps_factory is None
     if deps_factory is None:
         def deps_factory() -> Deps:
+            # Read keys per run, so keys saved from the UI apply without a restart.
+            rt = runtime_settings(settings, db)
             return Deps(
-                llm=AnthropicLLM(settings),
-                search=TavilySearch(settings.tavily_api_key, db, settings.search_cache_days),
-                settings=settings,
+                llm=AnthropicLLM(rt),
+                search=TavilySearch(rt.tavily_api_key, db, rt.search_cache_days),
+                settings=rt,
             )
 
     manager = RunManager(db, deps_factory, settings.max_concurrent_runs)
@@ -144,6 +158,13 @@ def create_app(
         return user
 
     CurrentUser = Annotated[dict[str, Any], Depends(current_user)]
+
+    def admin_user(user: CurrentUser) -> dict[str, Any]:
+        if not user["is_admin"]:
+            raise HTTPException(status_code=403, detail="Admins only")
+        return user
+
+    AdminUser = Annotated[dict[str, Any], Depends(admin_user)]
 
     def quota(user: dict[str, Any]) -> dict[str, Any]:
         if user["is_admin"]:
@@ -211,17 +232,52 @@ def create_app(
             "user": _public_user(user),
             "quota": quota(user),
             "models": {"cheap": settings.cheap_model, "deep": settings.deep_model},
+            "keys_ready": keys_ready(settings, db),
             "version": __version__,
         }
+
+    # API keys (admins) -------------------------------------------------------
+
+    @app.get("/api/admin/keys")
+    async def get_keys(_admin: AdminUser) -> dict[str, Any]:
+        return {"keys": public_keys(settings, db)}
+
+    @app.put("/api/admin/keys")
+    async def save_keys(body: KeysIn, _admin: AdminUser) -> dict[str, Any]:
+        """Check new keys live, save the ones that work, and report on each."""
+        submitted = {k: v.strip() for k, v in body.model_dump().items() if v is not None}
+        to_check: dict[str, str] = {}
+        for name, value in submitted.items():
+            if value == "":
+                db.delete_setting(name)  # fall back to the server's .env value
+            elif not valid_key_format(value):
+                raise HTTPException(status_code=422, detail=f"{name} has invalid characters.")
+            else:
+                to_check[name] = value
+        checks = await key_checker(to_check, settings.cheap_model) if to_check else {}
+        for name, value in to_check.items():
+            # Keep keys that work, or that only lack credits: those just need billing.
+            if checks.get(name, {}).get("status") != "invalid":
+                db.set_setting(name, value)
+        return {"keys": public_keys(settings, db), "checks": checks}
+
+    @app.post("/api/admin/keys/test")
+    async def test_keys(_admin: AdminUser) -> dict[str, Any]:
+        rt = runtime_settings(settings, db)
+        current = {name: getattr(rt, name) for name in KEY_NAMES}
+        checks = await key_checker(current, rt.cheap_model)
+        return {"keys": public_keys(settings, db), "checks": checks}
 
     # Runs ------------------------------------------------------------------
 
     @app.post("/api/runs")
     async def create_run(body: RunIn, user: CurrentUser) -> dict[str, Any]:
-        if check_keys and not (settings.anthropic_api_key and settings.tavily_api_key):
-            raise HTTPException(
-                status_code=503, detail="Server is missing ANTHROPIC_API_KEY or TAVILY_API_KEY."
+        if require_keys and not keys_ready(settings, db):
+            detail = (
+                "API keys are missing. Add them with the KEYS button at the top."
+                if user["is_admin"] else "This deck is not configured yet. Ask the admin."
             )
+            raise HTTPException(status_code=503, detail=detail)
         q = quota(user)
         if q["limit"] is not None and q["used"] >= q["limit"]:
             raise HTTPException(status_code=429, detail="Monthly run limit reached.")
