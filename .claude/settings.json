@@ -8,6 +8,7 @@
     }
   },
   "enabledPlugins": {
-    "savvy-progress@claude-kit": true
+    "savvy-progress@claude-kit": true,
+    "cc-plugin-you-should-know@builtin": true
   }
 }
