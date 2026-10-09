@@ -4,7 +4,7 @@
 > is it worth pursuing (scored, with evidence), and how to execute it.
 > It should cost about a cent per run and run on a small VPS.
 
-Status: **planning** · Last updated: 2026-10-09
+Status: **v0.1 built** (phases 0–2 and 4 done; see §9) · Last updated: 2026-10-09
 
 ---
 
@@ -60,7 +60,7 @@ Each step here is known in advance (search, analyze, judge, advise). A fixed Lan
 We still use LangGraph's agent features where they help:
 - **Parallel fan-out** (`Send`) for searches and the two analysts.
 - **Conditional loop:** if the evidence is thin, run one extra research round with better queries (max 1).
-- **Checkpointing** (SQLite) so runs survive restarts and can be resumed or inspected.
+- **Checkpointing** (later phase). For now, finished runs and their reports are stored in SQLite, and a run interrupted by a restart is marked failed.
 - **`interrupt()`** (later phase) to ask you a clarifying question when the idea is too vague.
 
 ### 3.2 The graph
@@ -181,8 +181,8 @@ So 100 ideas a month cost **≈ $1.60 (cheap)** or **≈ $13 (deep)**, plus the 
 
 | Provider | Cost | Notes | Role |
 |----------|------|-------|------|
-| **SearXNG** (self-hosted in Docker) | $0 | Meta-search over Google/Bing/DDG/Brave etc. Upstream engines can rate-limit a VPS IP; fine at personal volume | **Primary** |
-| **Tavily** | 1,000 free credits/mo (basic search = 1 credit), then $0.008/credit | LLM-friendly results, reliable | **Fallback** when SearXNG returns nothing or errors |
+| **SearXNG** (self-hosted in Docker) | $0 | Meta-search over Google/Bing/DDG/Brave etc. Upstream engines can rate-limit a VPS IP; fine at personal volume | Planned (phase 3) |
+| **Tavily** | 1,000 free credits/mo (basic search = 1 credit), then $0.008/credit | LLM-friendly results, reliable | **Current provider** (v0.1) |
 | Brave Search API | ~$5/1K queries, ~$5/mo free credit | Independent index | Optional |
 | Claude server-side `web_search` | $10/1K searches + result tokens | Simplest, but the priciest per run | Not used |
 
@@ -208,9 +208,9 @@ So 100 ideas a month cost **≈ $1.60 (cheap)** or **≈ $13 (deep)**, plus the 
 | Schemas | Pydantic v2 | Typed node I/O and structured outputs |
 | Search | SearXNG (Docker) + `tavily-python` fallback | Free primary search plus a reliable fallback |
 | Page extraction | `httpx` (async) + `trafilatura` | Fast, extracts the main text, fewer tokens |
-| Persistence | SQLite: `langgraph-checkpoint-sqlite` + app tables | Zero-ops, a single file to back up |
-| API / UI | FastAPI + one HTML page (HTMX + SSE for live node progress) | Tiny footprint, no JS build step |
-| CLI | `typer` (`idea "…" --deep`) | Fast dev loop |
+| Persistence | SQLite app tables (users, runs, search cache, waitlist) | Zero-ops, a single file to back up |
+| API / UI | FastAPI + one HTML page (vanilla JS + SSE for live node progress) | Tiny footprint, no JS build step |
+| CLI | `argparse` (`idea-eval run "…" --deep`, `idea-eval users …`) | Fast dev loop, no extra dependency |
 | Config | `pydantic-settings` + `.env` | Models, caps and keys in one place |
 | Observability | Structured logs + usage ledger; LangSmith optional (free tier) | No extra cost |
 | Tests | `pytest` with recorded fixtures (no live LLM calls in CI) | Free, deterministic CI |
@@ -234,14 +234,14 @@ IsThisIdeaGood/
 │  │  └─ fetch.py        # async fetch + trafilatura extract + token trim
 │  ├─ nodes/             # brief, search, gather, competitors, business, evidence_check, judge, strategist, report
 │  ├─ prompts/           # one .md system prompt per LLM node
-│  ├─ graph.py           # StateGraph wiring + checkpointer
+│  ├─ graph.py           # StateGraph wiring + run_pipeline()
 │  ├─ store.py           # SQLite: runs, reports, caches, usage ledger
 │  ├─ api.py             # FastAPI: POST /runs, GET /runs/{id}/events (SSE), GET /runs/{id}
 │  ├─ cli.py
 │  └─ templates/         # report.md.j2, report.html.j2, index.html
 ├─ deploy/
 │  ├─ docker-compose.yml # app + searxng (+ caddy)
-│  ├─ Caddyfile          # HTTPS + basic auth
+│  ├─ Caddyfile          # automatic HTTPS
 │  └─ searxng/settings.yml
 ├─ evals/
 │  ├─ ideas.yaml         # known ideas with expected existence verdicts
@@ -257,7 +257,7 @@ IsThisIdeaGood/
             Internet (HTTPS)
                   │
            ┌──────▼──────┐
-           │    Caddy    │  auto TLS (Let's Encrypt) + basic auth
+           │    Caddy    │  auto TLS (Let's Encrypt)
            └──────┬──────┘
                   │ :8000 (internal network)
            ┌──────▼──────┐        ┌─────────────┐
@@ -270,11 +270,11 @@ IsThisIdeaGood/
 ```
 
 - **Resources:** about 500 MB RAM total (app ≈ 250 MB, SearXNG ≈ 150 MB, Caddy ≈ 30 MB). Any 1 vCPU / 1–2 GB VPS works.
-- **If you already run Nginx or Traefik,** skip Caddy and add a reverse-proxy rule plus basic auth there.
+- **If you already run Nginx or Traefik,** the installer skips Caddy and binds the app to 127.0.0.1:8000 for your proxy.
 - **Secrets** live in `.env` on the VPS (chmod 600) and are never committed.
 - **Deploys:** `git pull && docker compose up -d --build`. A GitHub Action over SSH can come later.
 - **Backups:** nightly `sqlite3 app.db ".backup …"` via cron.
-- **Security:** basic auth in front (it protects your API budget), SearXNG on the internal Docker network only, budget cap in the app, rate limit of N runs/hour.
+- **Security:** whitelist login with scrypt-hashed passwords, rate-limited login, per-user quotas and an optional global budget cap (protects your API budget), strict CSP, noindex headers.
 
 ---
 
@@ -282,11 +282,11 @@ IsThisIdeaGood/
 
 | Phase | Deliverable | Done when |
 |-------|-------------|-----------|
-| **0. Skeleton** | `uv` project, config, schemas, CLI, graph with stub nodes, CI with pytest | `idea "test"` runs end-to-end with fake data |
-| **1. MVP (CLI)** | brief → search (Tavily free tier first, fastest to start) → gather → competitor analyst → judge → strategist → Markdown report | A real idea produces a useful report in under 2 minutes for under $0.03 |
-| **2. Full graph** | business analyst in parallel, evidence check + refine loop, SQLite caches, usage ledger, budget cap, scoring in code | Cost per run is logged; a re-run of the same idea is free |
+| ✅ **0. Skeleton** | `uv` project, config, schemas, CLI, graph with stub nodes, CI with pytest | `idea "test"` runs end-to-end with fake data |
+| ✅ **1. MVP (CLI)** | brief → search (Tavily free tier first, fastest to start) → gather → competitor analyst → judge → strategist → Markdown report | A real idea produces a useful report in under 2 minutes for under $0.03 |
+| ✅ **2. Full graph** | business analyst in parallel, evidence check + refine loop, SQLite caches, usage ledger, budget cap, scoring in code | Cost per run is logged; a re-run of the same idea is free |
 | **3. Self-hosted search** | SearXNG in Docker as primary, Tavily fallback | Runs work with no Tavily key |
-| **4. Web UI + deploy** | FastAPI + SSE progress page, report history, Docker Compose + Caddy on the VPS | You can use it from your phone over HTTPS |
+| ✅ **4. Web UI + deploy** | FastAPI + SSE progress page, report history, whitelist login, Docker Compose + Caddy, one-line `install.sh` | You can use it from your phone over HTTPS |
 | **5. Quality** | eval set (10–20 known ideas), prompt tuning, clarifying-question `interrupt()`, founder profile | The "Does it exist?" check gets ≥ 80% of the eval set right |
 | **6. Nice-to-haves** | HN Algolia + Reddit demand signals, compare two ideas, PDF export, Telegram bot front-end | — |
 
@@ -301,16 +301,17 @@ IsThisIdeaGood/
 | SearXNG blocked or rate-limited by upstream engines | Enable several engines; Tavily fallback; cache search results |
 | Market-size numbers are made up | Only report numbers present in sources, labeled "estimate" and linked; otherwise say "no data" |
 | Prompt injection from fetched pages | Delimited sources, "data not instructions" system prompt, no side-effecting tools |
-| Runaway cost | Hard caps on queries, pages, rounds and tokens; monthly budget cap; basic auth |
+| Runaway cost | Hard caps on queries, sources, rounds and tokens; per-user quotas; optional monthly budget cap; whitelist login |
 | Model or API changes | Model IDs in config; one model factory; recorded-fixture tests catch schema drift |
 
 ---
 
-## 11. Open decisions (defaults in **bold**)
+## 11. Decisions (2026-10-09)
 
-1. **Interface:** **web page (FastAPI + HTMX)** · CLI only · Telegram bot · Streamlit
-2. **Users:** **just you (basic auth)** · a few friends · public
-3. **Default quality:** **cheap mode (all Haiku 5.5), with a "deep" toggle** · always deep
-4. **Search to start with:** **Tavily free tier for the MVP, then SearXNG** · SearXNG from day 1
-5. **Reverse proxy:** **Caddy** · whatever already runs on your VPS
-6. **Report language:** **English** · same language as the idea input
+1. **Interface:** a single-page web app with a futuristic "cyberdeck" look.
+2. **Access:** a whitelist login. Admins (the owner) get unlimited runs. Other whitelisted users get a monthly quota. Anyone else who signs in sees "Coming soon" and is added to a waitlist. Credentials are entered at install time and never committed; only scrypt hashes are stored.
+3. **Default quality:** ECO mode (all Haiku 5.5) with a DEEP toggle (Sonnet 5.5 for the judge and strategist).
+4. **Search:** the Tavily free tier for now. SearXNG is phase 3.
+5. **Hosting:** the owner's Hostinger KVM 2 (Debian 13, 2 vCPU / 8 GB). Caddy handles automatic HTTPS when a domain is given. If ports 80/443 are busy, the installer falls back to binding on localhost.
+6. **Distribution:** a one-line `install.sh` from the public repo, so anyone can self-host it with their own keys.
+7. **Report language:** English for v0.1.

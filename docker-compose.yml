@@ -1,0 +1,38 @@
+# Configuration lives in .env (written by install.sh; see .env.example).
+# HTTPS mode: COMPOSE_PROFILES=https starts Caddy on ports 80/443 for $DOMAIN.
+# Direct mode: the app listens on $APP_BIND:$APP_PORT (default 127.0.0.1:8000).
+
+services:
+  app:
+    build: .
+    image: isthisideagood:local
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - ideadata:/data
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8000}:8000"
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  ideadata:
+  caddy_data:
+  caddy_config:
