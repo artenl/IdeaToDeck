@@ -109,6 +109,16 @@ load_env_value() {
 
 port_busy() { ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
 
+# Names of what listens on 80/443: host programs, plus Docker containers publishing them.
+port_holders() {
+  local procs containers
+  procs=$(ss -ltnpH '( sport = :80 or sport = :443 )' 2>/dev/null \
+    | grep -o 'users:(("[^"]*"' | cut -d'"' -f2 | grep -v '^docker-proxy$' | sort -u | tr '\n' ' ' || true)
+  containers=$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null \
+    | grep -E ':(80|443)->' | awk '{print $1}' | grep -v '^isthisideagood-' | sort -u | tr '\n' ' ' || true)
+  printf '%s' "${procs}${containers:+docker containers: $containers}"
+}
+
 our_caddy_running() {
   docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^isthisideagood-caddy'
 }
@@ -210,8 +220,8 @@ configure() {
 
   if [ -n "$DOMAIN" ]; then
     if (port_busy 80 || port_busy 443) && ! our_caddy_running; then
-      warn "Ports 80/443 are used by another program (nginx, apache, traefik…)."
-      warn "The app will listen on 127.0.0.1:8000 only; point your existing proxy at it."
+      warn "Ports 80/443 are already used by: $(port_holders)"
+      warn "The app will only listen on 127.0.0.1:8000, so it is not reachable from outside yet."
       MODE=behind-proxy
     else
       MODE=https
@@ -311,7 +321,7 @@ summary() {
   ip=$(public_ip || true)
   case "${MODE:-direct}" in
     https) url="https://$DOMAIN" ;;
-    behind-proxy) url="http://127.0.0.1:8000 (behind your reverse proxy for $DOMAIN)" ;;
+    behind-proxy) url="not public yet (see below)" ;;
     *) url="http://${ip:-<server-ip>}:${APP_PORT:-$HTTP_PORT}" ;;
   esac
   step "Done"
@@ -325,7 +335,17 @@ summary() {
   Logs:            cd $INSTALL_DIR && docker compose logs -f app
 
 EOF
-  if [ "${MODE:-}" = "https" ]; then
+  if [ "${MODE:-}" = "behind-proxy" ]; then
+    warn "Ports 80/443 belong to: $(port_holders)"
+    cat >&2 <<EOF
+  Use it now:      on your own computer run
+                     ssh -N -L 8000:127.0.0.1:8000 ${SUDO_USER:-root}@${ip:-<server-ip>}
+                   leave it running, then open http://localhost:8000 in Chrome
+  Make it public:  either point the program on ports 80/443 at http://127.0.0.1:8000,
+                   or stop that program and re-run the installer with RECONFIGURE=1
+                   to get automatic HTTPS for $DOMAIN.
+EOF
+  elif [ "${MODE:-}" = "https" ]; then
     say "  Make sure ports 80 and 443 are open in your provider's firewall."
   elif [ "${MODE:-}" = "direct" ]; then
     warn "Plain HTTP sends your password unencrypted. Re-run with RECONFIGURE=1 and a domain to enable HTTPS."
