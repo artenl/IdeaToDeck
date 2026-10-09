@@ -42,6 +42,38 @@ Use `DOMAIN=-` for no domain. If ports 80/443 are already taken by another web s
 
 Your provider's firewall must allow ports 80 and 443 (or 8080 without a domain).
 
+### Sharing an existing Caddy
+
+If another project's Caddy container already holds ports 80/443, let it route a hostname to this app:
+
+```bash
+# 1. Join that Caddy's Docker network (find it with: docker inspect <caddy-container>)
+cd /opt/isthisideagood
+cat > docker-compose.override.yml <<'EOF'
+services:
+  app:
+    networks:
+      default: {}
+      proxy:
+        aliases: [isthisideagood]
+networks:
+  proxy:
+    external: true
+    name: <caddy-network>
+EOF
+docker compose up -d
+
+# 2. Add a site to that Caddy's Caddyfile, then reload it
+#    ideas.example.com {
+#        reverse_proxy isthisideagood:8000 {
+#            flush_interval -1
+#        }
+#    }
+docker exec <caddy-container> caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+Caddy gets the HTTPS certificate on its own. `docker-compose.override.yml` is git-ignored, so updates keep it.
+
 ## Access control
 
 - Only **whitelisted emails** can use the app. Anyone else who signs in sees a "Coming soon" screen, and their email goes on a waitlist.
