@@ -1,5 +1,5 @@
 [project]
-name = "isthisideagood"
+name = "ideatodeck"
 version = "0.1.0"
 description = "LangGraph pipeline that checks whether an idea exists, how it makes money, scores it and suggests how to execute it."
 readme = "README.md"

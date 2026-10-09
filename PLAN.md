@@ -1,4 +1,4 @@
-# IsThisIdeaGood — Project Plan
+# IdeaToDeck — Project Plan
 
 > Type an idea. Get back: does it already exist, how do similar businesses make money,
 > is it worth pursuing (scored, with evidence), and how to execute it.
@@ -220,7 +220,7 @@ So 100 ideas a month cost **≈ $1.60 (cheap)** or **≈ $13 (deep)**, plus the 
 ## 7. Repository layout
 
 ```
-IsThisIdeaGood/
+IdeaToDeck/
 ├─ pyproject.toml
 ├─ .env.example
 ├─ src/idea_eval/

@@ -137,7 +137,7 @@ def create_app(
     email_limiter = LoginLimiter(max_failures=5, window_s=900)
     ip_limiter = LoginLimiter(max_failures=20, window_s=900)
 
-    app = FastAPI(title="IsThisIdeaGood", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="IdeaToDeck", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db = db
     app.state.runs = manager
     app.add_middleware(

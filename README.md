@@ -1,4 +1,4 @@
-# IsThisIdeaGood · IDEA//DECK
+# IdeaToDeck · IDEA//DECK
 
 Type in any idea. A small LangGraph pipeline of specialist agents then:
 
@@ -16,12 +16,12 @@ It runs on a small VPS, costs about **$0.02 per idea** (ECO mode) or **$0.13** (
 On a fresh Debian or Ubuntu server:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/artenl/IsThisIdeaGood/HEAD/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/artenl/IdeaToDeck/HEAD/install.sh | sudo bash
 ```
 
 The installer:
 
-- installs Docker if it's missing and clones this repo to `/opt/isthisideagood`,
+- installs Docker if it's missing and clones this repo to `/opt/isthisideagood` (the folder and Docker names keep the project's original name, so existing installs update in place),
 - asks for your **Anthropic API key** ([console.anthropic.com](https://console.anthropic.com/settings/keys)) and your **Tavily API key** ([app.tavily.com](https://app.tavily.com), 1,000 free searches a month). You can press Enter to skip both and add them later in the app,
 - asks for an **admin email and password**. The admin is whitelisted with unlimited runs, and only a hash of the password is stored,
 - asks for a **domain**. If you give one, Caddy fetches a Let's Encrypt certificate and serves HTTPS on 80/443. Without one, the app is served over plain HTTP on port 8080,
@@ -42,7 +42,7 @@ Keys saved in the app take priority over `.env` and apply to the next run, with 
 **Non-interactive:** put the answers after `sudo`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/artenl/IsThisIdeaGood/HEAD/install.sh | sudo \
+curl -fsSL https://raw.githubusercontent.com/artenl/IdeaToDeck/HEAD/install.sh | sudo \
   ANTHROPIC_API_KEY=sk-ant-... TAVILY_API_KEY=tvly-... \
   ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='choose-a-strong-one' \
   DOMAIN=ideas.example.com bash

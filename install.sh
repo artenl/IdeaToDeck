@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# IsThisIdeaGood one-line installer / updater for a Debian or Ubuntu VPS.
+# IdeaToDeck one-line installer / updater for a Debian or Ubuntu VPS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/artenl/IsThisIdeaGood/HEAD/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/artenl/IdeaToDeck/HEAD/install.sh | sudo bash
 #
 # It installs Docker if needed, clones the repo to /opt/isthisideagood, asks for your
 # API keys and an admin login, and starts the app (with automatic HTTPS when you
@@ -11,7 +11,8 @@
 #   curl -fsSL .../install.sh | sudo ANTHROPIC_API_KEY=sk-ant-... TAVILY_API_KEY=tvly-... \
 #     ADMIN_EMAIL=me@example.com ADMIN_PASSWORD='...' DOMAIN=ideas.example.com bash
 #
-# Other variables: INSTALL_DIR (default /opt/isthisideagood), REPO_URL, BRANCH,
+# Other variables: INSTALL_DIR (default /opt/isthisideagood, the project's original
+# name, kept so existing installs update in place), REPO_URL, BRANCH,
 # RECONFIGURE=1 (ask everything again), HTTP_PORT (direct mode port, default 8080),
 # CHECK_KEYS=0 (skip the live Anthropic key check).
 
@@ -21,7 +22,7 @@ main() {
   set -Eeuo pipefail
   trap 'die "failed at line $LINENO: $BASH_COMMAND"' ERR
 
-  REPO_URL="${REPO_URL:-https://github.com/artenl/IsThisIdeaGood.git}"
+  REPO_URL="${REPO_URL:-https://github.com/artenl/IdeaToDeck.git}"
   BRANCH="${BRANCH:-}"
   INSTALL_DIR="${INSTALL_DIR:-/opt/isthisideagood}"
   HTTP_PORT="${HTTP_PORT:-8080}"
@@ -75,7 +76,7 @@ banner() {
  |_ _|   \| __| /_\    / // / |   \| __|/ __| |/ /
   | || |) | _| / _ \  / // /  | |) | _|| (__| ' <
  |___|___/|___/_/ \_\/_//_/   |___/|___|\___|_|\_\
-        is this idea good? // installer
+        idea to deck // installer
 EOF
   printf '%s\n' "$C_0" >&2
 }
